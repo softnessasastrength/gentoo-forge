@@ -11,12 +11,13 @@
 - Installed RAM: 16 GiB
 - Hibernation: enabled (resume support must be configured and tested)
 - Disk encryption: none (explicit choice; root and hibernation swap unencrypted)
+- Snapshot manager: Snapper with automatic timeline snapshots and cleanup
 - Unlocking method / LUKS recovery keys: not applicable
 
 ## Pending
 
 - Partition sizes and Btrfs subvolumes
 - Swap capacity: 20 GiB recommended, awaiting confirmation
-- Snapshot tooling and retention
+- Snapshot retention, root/home policies, and rollback integration
 
 No partitioning or formatting is authorized by this document. All disk writes remain disabled.
