@@ -18,3 +18,9 @@ The --nuke-it flag requests the guarded destructive workflow but is never itself
 6. Never replay destructive phases automatically on resume. An interrupted destructive step requires new inspection and explicit device-specific confirmation.
 
 This is a design contract only. No disk writes are enabled or authorized. Test all refusal cases in disposable virtual machines before implementing the destructive engine.
+
+## Release gates
+
+Require a full disposable-VM test matrix with repeated installation, destructive-device rejection tests, simulated interruptions and power failures, corrupt checkpoints, online/offline artifact verification, bootloader/kernel fallback, snapshot rollback, and hibernation handling. Capture sanitized reproducible evidence of passes and failures.
+
+Physical SSD writes remain disabled even after automated tests pass until a separate explicit hardware-readiness review and approval. That approval never replaces the fresh device-specific full-serial confirmation. No tests have yet been run to establish these gates.
