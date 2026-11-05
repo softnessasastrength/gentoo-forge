@@ -9,6 +9,11 @@
 - CPU optimization: -march=znver2 -O2 -pipe
 - Build parallelism: MAKEOPTS="-j6 -l6"
 - USE flags: profile defaults with targeted package.use overrides
+- Graphics: kernel amdgpu, Mesa RADV, Wayland primary, XWayland compatibility; Mesa VIDEO_CARDS=radeonsi (validated against package metadata)
+- Audio: PipeWire (WirePlumber session manager planned)
+- Multimedia: full codec support and VA-API hardware acceleration
+- Gaming: Steam, Proton, Wine, GameMode, and 32-bit graphics/Vulkan compatibility
+- Graphics package flags: Mesa vulkan vaapi wayland X and ABI_X86=32,64 verified in current package metadata; actual package.use must be tested against resolved profile
 - Stage 3: standard amd64 OpenRC, multilib
 - Intended profile: desktop/Plasma/OpenRC (resolve exact profile path against installed Gentoo profile tree)
 - Firmware: UEFI
@@ -26,10 +31,7 @@
 
 ## Pending
 
-- Graphics: VIDEO_CARDS, Vulkan, 32-bit userspace, firmware
-- Audio: PipeWire, WirePlumber, ALSA, optional PulseAudio compatibility
-- Multimedia: codecs and hardware acceleration
-- Gaming: Steam, Proton, Wine, 32-bit Vulkan
+- Validate package-specific USE flags against current Gentoo tree at install time; no unverified flags committed
 
 - Verify exact Plasma/OpenRC profile path and Stage 3 release metadata before bootstrap
 
