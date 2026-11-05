@@ -63,6 +63,8 @@
 - Login manager: SDDM for KDE Plasma; verify OpenRC display-manager service and Wayland compatibility
 - Secrets policy: never commit passwords, hashes, tokens, or recovery secrets; prompt securely during authorized installation
 
+- Installation target policy: dedicated SSD is disposable; clean-install workflow may erase it only after live device identity verification, full plan review, and explicit per-device confirmation. No current authorization to execute disk writes.
+
 ## Pending
 
 - Validate package-specific USE flags against current Gentoo tree at install time; no unverified flags committed
