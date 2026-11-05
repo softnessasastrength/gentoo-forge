@@ -34,6 +34,12 @@
 - Recovery kernel: retain precompiled sys-kernel/gentoo-kernel-bin as fallback; preserve known-good kernel/initramfs/GRUB entry across updates
 - Kernel boot integration: initramfs generator, swap resume UUID, kernel update policy, and GRUB snapshot integration pending explicit decisions
 
+
+- Initramfs: Dracut (verify Gentoo installkernel integration and resume module before implementation)
+- Hibernation resume: dedicated swap partition via verified UUID; never hardcode a guessed UUID
+- Kernel updates: conservative; retain tested primary kernel, matching modules/initramfs, and precompiled fallback kernel
+- GRUB recovery: Btrfs snapshot boot-menu integration plus manual recovery path; verify boot artifacts and avoid stale hibernation resume on rollback
+
 ## Pending
 
 - Validate package-specific USE flags against current Gentoo tree at install time; no unverified flags committed
