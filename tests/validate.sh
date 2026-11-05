@@ -18,4 +18,12 @@ fi
 if bash "$planner" --layout-bytes not-a-number >/dev/null 2>&1; then
   echo 'Planner accepted invalid capacity' >&2; exit 1
 fi
-echo 'Validation passed (static checks and synthetic read-only layout tests).'
+if command -v python3 >/dev/null; then
+  python3 -m py_compile tui/forge.py tests/test_tui.py
+  python3 -m unittest discover -s tests -p 'test_tui.py' -v
+  python3 tui/forge.py --validate >/dev/null
+  python3 tui/forge.py --json-plan 100 | grep -Fq 'READ_ONLY'
+else
+  echo 'python3 unavailable; TUI validation skipped' >&2
+fi
+echo 'Validation passed (static checks, read-only planner and TUI unit tests).'
