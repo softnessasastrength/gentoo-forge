@@ -23,3 +23,7 @@ The curses interface offers seven keyboard-navigable panels: overview, hardware,
 ### Attitude settings
 
 The TUI displays optional section-specific, lighthearted commentary. It defaults to `mild`; press **A** to cycle `mild` → `spicy` → `off`, or launch with `python3 tui/forge.py --attitude off`. Commentary is presentation-only and never changes validation results, safety decisions, or error messages.
+
+### Herbal edition
+
+Launch `python3 tui/forge.py --stoner` for a simplified, cannabis-themed seven-screen interface. This is cosmetic and informational: it never bypasses validation or authorizes disk operations. Combining `--stoner --nuke-it` still refuses destructive execution.
