@@ -65,13 +65,15 @@
 
 - Installation target policy: dedicated SSD is disposable; clean-install workflow may erase it only after live device identity verification, full plan review, and explicit per-device confirmation. No current authorization to execute disk writes.
 
+- Btrfs subvolume policy: minimal separation, root @ mounted at / and home @home mounted at /home, with independent root and home snapshot storage; final Snapper mount paths and GRUB snapshot integration require validation before installer execution.
+
 ## Pending
 
 - Validate package-specific USE flags against current Gentoo tree at install time; no unverified flags committed
 
 - Verify exact Plasma/OpenRC profile path and Stage 3 release metadata before bootstrap
 
-- Btrfs subvolume implementation and exact partition boundaries (account for GPT metadata and alignment)
+- Verify minimal Btrfs subvolume mount topology, Snapper root/home configs, and exact partition boundaries (account for GPT metadata and alignment)
 - Validate snapshot retention implementation, home-specific retention, and GRUB rollback integration
 
 No partitioning or formatting is authorized by this document. All disk writes remain disabled.
