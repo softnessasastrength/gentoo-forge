@@ -72,6 +72,11 @@
 - Boot consistency policy: preserve a known-good kernel, matching modules/initramfs, and boot entry across updates; keep gentoo-kernel-bin fallback. Regenerate and validate GRUB entries against actual Btrfs subvolume paths; never claim a root snapshot is bootable without a VM boot test.
 - Snapshot recovery boundary: ESP is outside Btrfs snapshots; maintain an independent EFI/GRUB recovery procedure and test restoration of root snapshots with their matching boot artifacts.
 
+- Recovery selection: GRUB snapshot entry is a temporary diagnostic boot only; permanent rollback is a separate, explicit, device-aware confirmation after inspection. Selecting a GRUB entry must never automatically commit rollback.
+- Hibernation/rollback policy: before committing a permanent rollback, detect any pending hibernation state using a validated mechanism; if present, explain that the suspended session will be lost and require explicit confirmation before invalidating it. If detection or invalidation cannot be verified, fail closed and block rollback.
+- Recovery invariants: never resume a stale hibernation image after changing the root filesystem; preserve a known-good kernel/initramfs/modules set and fallback entry; confirm the selected snapshot's Btrfs identity, bootability, and kernel-module compatibility before committing; preserve independent /home data and snapshot history; record an auditable rollback plan and recovery outcome without secrets; keep a separate EFI/GRUB repair path.
+- Implementation status: recovery flow is policy only; GRUB snapshot integration, Snapper rollback mechanics, resume-image detection/invalidation, and power-loss recovery must pass disposable-VM tests before destructive execution is enabled.
+
 ## Pending
 
 - Validate package-specific USE flags against current Gentoo tree at install time; no unverified flags committed
