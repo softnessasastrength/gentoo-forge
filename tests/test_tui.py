@@ -36,6 +36,11 @@ class PlannerTests(unittest.TestCase):
         self.assertIn("Gentoo", forge.commentary("mild", 0))
         self.assertTrue(forge.commentary("spicy", 1))
 
+    def test_stoner_mode_keeps_safety_panel(self):
+        self.assertEqual(len(forge.STONER_SECTIONS), len(forge.SECTIONS))
+        self.assertIn("NO DISK WRITES", " ".join(forge.STONER_LINES[-1]))
+        self.assertIn("never skips safety", " ".join(forge.STONER_LINES[-1]))
+
     def test_nuke_it_refuses(self):
         import subprocess
         import sys
