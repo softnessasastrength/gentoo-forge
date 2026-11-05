@@ -90,6 +90,13 @@
 - Hybrid offline completeness: preflight the full resolved dependency closure and required distfiles/binpkgs for the selected profile, including KDE, kernel, firmware, and gaming packages; do not claim offline-ready from Stage 3 and Portage metadata alone. Missing or unverifiable artifacts block offline installation.
 - Implementation status: package policy is documented, not a working resolver; Portage behavior, signing support, dependency closure, and offline installation require disposable-VM validation.
 
+- Installation resumability: checkpoint-based, with verified outputs and explicit phase transitions. A checkpoint records planned inputs, verified target identity, artifact digests, completed outputs, and phase status; never trust a completion marker alone.
+- Resume safety: re-discover physical target and verify stable device identity, partition UUIDs, expected mounts/filesystems, manifest version and integrity, and outputs before continuing. Refuse resume on mismatches or ambiguous state. Never replay partitioning, formatting, swap initialization, or other destructive steps automatically; require a fresh plan and device-specific authorization if such work is necessary.
+- Phase retries: use idempotent, independently validated steps where feasible. Reuse verified downloads/build outputs, retry safe package operations after consistency checks, and explicitly distinguish interrupted extraction/configuration from completed installation. Fail closed on partially applied, non-idempotent operations and preserve diagnostic evidence.
+- Logs: structured, timestamped phase/status/error events plus readable live output; sanitized, persistent records and optional diagnostic export. Never record passwords, tokens, secret material, or raw environment dumps. Redact sensitive command arguments and output; review exported diagnostics for identifiers and personal data.
+- Log durability: keep a working log in live media memory and persist a sanitized copy to the installed target only after that target is safely mounted and verified. On failures before that point, offer explicit export to user-selected removable media; never assume live media storage is persistent.
+- Resume/recovery implementation status: specification only, not implemented or tested; simulate interruption, corrupt checkpoints, device swaps, and power-loss scenarios in disposable VMs before enabling disk writes.
+
 ## Pending
 
 - Validate package-specific USE flags against current Gentoo tree at install time; no unverified flags committed
