@@ -14,6 +14,33 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 GIB = 1024 ** 3
 SECTIONS = ["Overview", "Hardware", "Storage plan", "System profile", "Validation", "Recovery", "Safety"]
+
+# Humor is strictly cosmetic: never replace errors, warnings or safety decisions.
+ROASTS = {
+    "mild": [
+        "Welcome to Gentoo. Free time was apparently becoming a problem.",
+        "Six cores, twelve threads, and an unreasonable amount of optimism.",
+        "Btrfs snapshots: because confidence is not a recovery strategy.",
+        "Everything checks out. Suspicious, frankly.",
+        "The installer remains read-only. Your SSD sends its regards.",
+        "Compiling Linux: a perfectly normal way to spend a weekend.",
+        "GRUB recovery exists because computers have a flair for drama.",
+    ],
+    "spicy": [
+        "You chose Gentoo voluntarily. The logs will remember this.",
+        "Your CPU has filed a complaint with the Department of Labor.",
+        "We have snapshots because 'I know what I'm doing' isn't a backup.",
+        "Nothing exploded. Try not to look so disappointed.",
+        "Your SSD is safe. Unlike your plans for the weekend.",
+        "The kernel will finish compiling sometime before the heat death of the universe.",
+        "Congratulations, you've made a bootloader into a personality trait.",
+    ],
+}
+def commentary(level: str, section: int) -> str:
+    if level == "off":
+        return ""
+    return ROASTS[level][section % len(SECTIONS)]
+
 DEFAULTS = {
     "HOSTNAME": "forge", "TIMEZONE": "America/New_York", "LOCALE": "en_US.UTF-8",
     "CPU_MARCH": "znver2", "GPU_DRIVER": "amdgpu", "BOOT_MODE": "uefi",
@@ -136,7 +163,7 @@ def section_lines(index: int, cfg: dict[str, str]) -> list[str]:
 def export_plan(size_gib: int) -> str:
     return json.dumps(plan_for_bytes(size_gib * GIB), indent=2, sort_keys=True)
 
-def draw(stdscr: object, cfg: dict[str, str]) -> None:
+def draw(stdscr: object, cfg: dict[str, str], attitude: str = "mild") -> None:
     curses.curs_set(0)
     stdscr.keypad(True)
     selected, scroll = 0, 0
@@ -162,9 +189,13 @@ def draw(stdscr: object, cfg: dict[str, str]) -> None:
             scroll = min(scroll, max(0, len(lines) - usable))
             for offset, line in enumerate(lines[scroll:scroll + usable]):
                 put(3 + offset, sidebar + 2, line, curses.A_BOLD if offset == 0 else 0)
-            put(height - 2, 1, "UP/DOWN: section   TAB: next   PGUP/PGDN: scroll   1-7: jump   Q: quit", curses.A_REVERSE)
+            put(height - 3, 1, ("COMMENTARY [" + attitude.upper() + "]: " + commentary(attitude, selected)) if attitude != "off" else "COMMENTARY: OFF")
+            put(height - 2, 1, "ARROWS/TAB: navigate   PGUP/PGDN: scroll   A: attitude   Q: quit", curses.A_REVERSE)
         stdscr.refresh()
         key = stdscr.getch()
+        if key in (ord("a"), ord("A")):
+            attitude = {"off": "mild", "mild": "spicy", "spicy": "off"}[attitude]
+            continue
         if key in (ord("q"), ord("Q"), 27):
             return
         if key in (curses.KEY_DOWN, ord("j"), 9):
@@ -182,6 +213,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Read-only Gentoo installer planning TUI")
     parser.add_argument("--json-plan", type=int, metavar="DISK_GIB", help="Export a synthetic plan as JSON (no disk access)")
     parser.add_argument("--validate", action="store_true", help="Run internal static checks without curses")
+    parser.add_argument("--attitude", choices=("off", "mild", "spicy"), default="mild", help="Optional cosmetic commentary (default: mild)")
     args = parser.parse_args()
     if args.json_plan is not None:
         try:
@@ -194,7 +226,7 @@ def main() -> int:
         return 0
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         parser.error("Interactive TUI requires a terminal; use --validate or --json-plan")
-    curses.wrapper(draw, parse_config(ROOT / "config/hardware.env"))
+    curses.wrapper(draw, parse_config(ROOT / "config/hardware.env"), args.attitude)
     return 0
 
 if __name__ == "__main__":
