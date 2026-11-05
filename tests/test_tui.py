@@ -31,6 +31,11 @@ class PlannerTests(unittest.TestCase):
             self.assertEqual(parsed["HOSTNAME"], "forge")
             self.assertFalse(marker.exists())
 
+    def test_commentary_modes(self):
+        self.assertEqual(forge.commentary("off", 0), "")
+        self.assertIn("Gentoo", forge.commentary("mild", 0))
+        self.assertTrue(forge.commentary("spicy", 1))
+
     def test_sections(self):
         for i in range(len(forge.SECTIONS)):
             self.assertTrue(forge.section_lines(i, forge.DEFAULTS))
