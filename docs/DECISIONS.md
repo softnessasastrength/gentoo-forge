@@ -104,6 +104,11 @@
 - Race/retry protection: never rely on /dev/sdX or /dev/nvmeXnY alone; bind reviewed plan to stable identity and verified device topology. Repeated or interrupted destructive operations require fresh review and confirmation; do not auto-replay from checkpoints.
 - Safety status: policy only; disk-writing implementation remains disabled and untested.
 
+- Release testing: full disposable-VM matrix, including repeated end-to-end installs, synthetic and real virtual disk identity rejection, offline/online artifact verification, package resolution, checkpoint corruption, interrupted phases, power loss, GRUB and fallback kernel boot, Snapper root/home snapshot behavior, rollback, and hibernation-image invalidation.
+- Physical installation gate: automated test success is necessary but not sufficient. Require a separate, explicit hardware-readiness review and approval before enabling writes to a physical SSD; still require the per-disk full-serial confirmation at execution time.
+- Release evidence: retain sanitized test reports, reproducible VM configuration, artifact versions, failures and retests; no claim of readiness without verified passing results.
+- First implementation milestone: read-only bootstrap preflight and simulated phase/checkpoint engine with structured sanitized logs, synthetic device inventories, and fault-injection tests. No destructive commands or disk writes in this milestone.
+
 ## Pending
 
 - Validate package-specific USE flags against current Gentoo tree at install time; no unverified flags committed
