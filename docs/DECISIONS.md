@@ -4,6 +4,8 @@
 
 - Target: dedicated SSD (device identifier not yet selected)
 - Hardware: AMD Ryzen 5 4500 / Radeon RX 6600 XT
+- Init system: OpenRC
+- Stage 3 architecture: amd64 (variant pending)
 - Firmware: UEFI
 - Partition table: GPT
 - Root filesystem: Btrfs
@@ -18,6 +20,9 @@
 - Unlocking method / LUKS recovery keys: not applicable
 
 ## Pending
+
+- Stage 3 variant: standard or hardened; multilib or no-multilib
+- Gentoo profile: desktop/Plasma or another profile
 
 - Partition sizes and Btrfs subvolumes
 - Swap capacity: 20 GiB recommended, awaiting confirmation
