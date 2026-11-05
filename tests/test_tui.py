@@ -36,6 +36,13 @@ class PlannerTests(unittest.TestCase):
         self.assertIn("Gentoo", forge.commentary("mild", 0))
         self.assertTrue(forge.commentary("spicy", 1))
 
+    def test_nuke_it_refuses(self):
+        import subprocess
+        import sys
+        result = subprocess.run([sys.executable, str(path), "--nuke-it"], capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 3)
+        self.assertIn("REFUSED", result.stderr)
+
     def test_sections(self):
         for i in range(len(forge.SECTIONS)):
             self.assertTrue(forge.section_lines(i, forge.DEFAULTS))
