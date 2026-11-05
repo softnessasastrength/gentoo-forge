@@ -163,7 +163,17 @@ def section_lines(index: int, cfg: dict[str, str]) -> list[str]:
 def export_plan(size_gib: int) -> str:
     return json.dumps(plan_for_bytes(size_gib * GIB), indent=2, sort_keys=True)
 
-def draw(stdscr: object, cfg: dict[str, str], attitude: str = "mild") -> None:
+STONER_SECTIONS = ["The Vibe", "The Rig", "The Grow Plan", "The Strain", "Vibe Check", "Bad Trip Recovery", "Ground Rules"]
+STONER_LINES = [
+    ["WELCOME TO GENTOO-FORGE: HERBAL EDITION", "", "Take it one screen at a time. Nothing is being installed.", "Your SSD is untouched. That's the good stuff.", "", "Arrows or Tab: next screen | Q: leave"],
+    ["THE RIG", "", "Inspecting hardware only. No changes.", "Your CPU is about to develop a strong work ethic."],
+    ["THE GROW PLAN", "", "Future layout: 1 GiB EFI, 20 GiB swap, remaining Btrfs.", "This is a sketch, not permission to erase a disk."],
+    ["THE STRAIN", "", "Gentoo + KDE Plasma + OpenRC.", "Slow-grown, locally compiled, irresponsibly artisanal."],
+    ["VIBE CHECK", "", "Validation checks the plan, not your personality.", "Actual installation and boot testing remain pending."],
+    ["BAD TRIP RECOVERY", "", "Fallback kernel and Snapper are planned.", "Because sometimes the kernel doesn't pass the vibe check."],
+    ["GROUND RULES", "", "READ ONLY. NO DISK WRITES.", "Stoner mode never skips safety checks.", "No automatic confirmation, formatting, or installation."],
+]
+def draw(stdscr: object, cfg: dict[str, str], attitude: str = "mild", stoner: bool = False) -> None:
     curses.curs_set(0)
     stdscr.keypad(True)
     selected, scroll = 0, 0
@@ -176,15 +186,15 @@ def draw(stdscr: object, cfg: dict[str, str], attitude: str = "mild") -> None:
             def put(y: int, x: int, message: str, style: int = 0) -> None:
                 if 0 <= y < height - 1 and 0 <= x < width - 1:
                     stdscr.addnstr(y, x, message, width - x - 1, style)
-            put(0, 1, " GENTOO-FORGE  /  INSTALLATION MISSION CONTROL ", curses.A_BOLD | curses.A_REVERSE)
+            put(0, 1, " GENTOO-FORGE / HERBAL EDITION " if stoner else " GENTOO-FORGE / INSTALLATION MISSION CONTROL ", curses.A_BOLD | curses.A_REVERSE)
             put(1, 2, "SAFE MODE: READ ONLY  |  NO DISK WRITES", curses.A_BOLD)
             sidebar = 21
-            for i, label in enumerate(SECTIONS):
+            for i, label in enumerate(STONER_SECTIONS if stoner else SECTIONS):
                 style = curses.A_REVERSE if i == selected else curses.A_NORMAL
                 put(3 + i, 1, f" {i + 1}  {label:<16}", style)
             for y in range(3, height - 2):
                 put(y, sidebar, "|")
-            lines = section_lines(selected, cfg)
+            lines = STONER_LINES[selected] if stoner else section_lines(selected, cfg)
             usable = height - 6
             scroll = min(scroll, max(0, len(lines) - usable))
             for offset, line in enumerate(lines[scroll:scroll + usable]):
@@ -214,6 +224,7 @@ def main() -> int:
     parser.add_argument("--json-plan", type=int, metavar="DISK_GIB", help="Export a synthetic plan as JSON (no disk access)")
     parser.add_argument("--validate", action="store_true", help="Run internal static checks without curses")
     parser.add_argument("--nuke-it", action="store_true", help="Request future destructive installation workflow; currently refuses safely")
+    parser.add_argument("--stoner", action="store_true", help="Simplified, cannabis-themed read-only TUI; never bypasses safeguards")
     parser.add_argument("--attitude", choices=("off", "mild", "spicy"), default="mild", help="Optional cosmetic commentary (default: mild)")
     args = parser.parse_args()
     if args.nuke_it:
@@ -231,7 +242,7 @@ def main() -> int:
         return 0
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         parser.error("Interactive TUI requires a terminal; use --validate or --json-plan")
-    curses.wrapper(draw, parse_config(ROOT / "config/hardware.env"), args.attitude)
+    curses.wrapper(draw, parse_config(ROOT / "config/hardware.env"), args.attitude, args.stoner)
     return 0
 
 if __name__ == "__main__":
