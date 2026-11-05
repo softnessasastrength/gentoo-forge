@@ -77,6 +77,12 @@
 - Recovery invariants: never resume a stale hibernation image after changing the root filesystem; preserve a known-good kernel/initramfs/modules set and fallback entry; confirm the selected snapshot's Btrfs identity, bootability, and kernel-module compatibility before committing; preserve independent /home data and snapshot history; record an auditable rollback plan and recovery outcome without secrets; keep a separate EFI/GRUB repair path.
 - Implementation status: recovery flow is policy only; GRUB snapshot integration, Snapper rollback mechanics, resume-image detection/invalidation, and power-loss recovery must pass disposable-VM tests before destructive execution is enabled.
 
+- LiveCD bootstrap: hybrid online/offline. Support verified HTTPS retrieval or explicitly supplied local Stage 3, Portage snapshot, and required installation artifacts; no implicit trust in local caches.
+- Bootstrap safety: read-only preflight checks for UEFI boot, architecture, root privileges for eventual install, Python/curses, lsblk/blkid, partitioning/filesystem tools, Btrfs, tar, cryptographic verification tools, network/DNS/HTTPS/time when online, and available disk/memory. Missing dependencies produce actionable diagnostics, never automatic unreviewed disk changes.
+- Artifact verification: pin resolved architecture/profile and release metadata; verify authenticity using trusted Gentoo signing keys and signatures where provided, plus expected cryptographic digests. Checksums alone do not authenticate untrusted local media. Reject absent, stale/incompatible, tampered, or unverifiable inputs; fail closed. Record provenance without secrets.
+- Offline constraints: verify all required inputs and dependencies are present before installation authorization; no silent network fallback or substitution. Warn that full source compilation and package resolution may require additional distfiles/binpkgs beyond a Stage 3 and Portage snapshot; offline completeness must be proven in disposable VM tests.
+- Installer bootstrap remains read-only; no disk writes or destructive install authorization are implied by these decisions.
+
 ## Pending
 
 - Validate package-specific USE flags against current Gentoo tree at install time; no unverified flags committed
