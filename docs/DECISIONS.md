@@ -29,6 +29,11 @@
 - Rollback approach: GRUB boot-menu snapshot recovery integration (implementation and boot artifact consistency to be tested)
 - Unlocking method / LUKS recovery keys: not applicable
 
+
+- Primary kernel: source-built sys-kernel/gentoo-kernel (distribution kernel configuration)
+- Recovery kernel: retain precompiled sys-kernel/gentoo-kernel-bin as fallback; preserve known-good kernel/initramfs/GRUB entry across updates
+- Kernel boot integration: initramfs generator, swap resume UUID, kernel update policy, and GRUB snapshot integration pending explicit decisions
+
 ## Pending
 
 - Validate package-specific USE flags against current Gentoo tree at install time; no unverified flags committed
