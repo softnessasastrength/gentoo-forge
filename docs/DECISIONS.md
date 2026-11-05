@@ -7,10 +7,11 @@
 - Firmware: UEFI
 - Partition table: GPT
 - Root filesystem: Btrfs
+- Partition layout: three GPT partitions, EFI System Partition + dedicated Linux swap + Btrfs root (sizes TBD)
 
 ## Pending
 
-- Partition layout and Btrfs subvolumes
+- Partition sizes and Btrfs subvolumes
 - Swap strategy and capacity
 - Hibernation
 - LUKS encryption
