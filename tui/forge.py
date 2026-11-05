@@ -213,8 +213,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Read-only Gentoo installer planning TUI")
     parser.add_argument("--json-plan", type=int, metavar="DISK_GIB", help="Export a synthetic plan as JSON (no disk access)")
     parser.add_argument("--validate", action="store_true", help="Run internal static checks without curses")
+    parser.add_argument("--nuke-it", action="store_true", help="Request future destructive installation workflow; currently refuses safely")
     parser.add_argument("--attitude", choices=("off", "mild", "spicy"), default="mild", help="Optional cosmetic commentary (default: mild)")
     args = parser.parse_args()
+    if args.nuke_it:
+        print("NUKE MODE REQUESTED: your partition table has requested legal representation.", file=sys.stderr)
+        print("REFUSED: destructive installation is not implemented; no disks touched.", file=sys.stderr)
+        return 3
     if args.json_plan is not None:
         try:
             print(export_plan(args.json_plan))
