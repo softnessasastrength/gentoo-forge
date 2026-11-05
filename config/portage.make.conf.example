@@ -1,0 +1,10 @@
+# Example only: review against current Gentoo profile and hardware before use.
+# Merge these into /etc/portage/make.conf; do not overwrite existing settings.
+COMMON_FLAGS="-march=znver2 -O2 -pipe"
+CFLAGS="${COMMON_FLAGS}"
+CXXFLAGS="${COMMON_FLAGS}"
+FCFLAGS="${COMMON_FLAGS}"
+FFLAGS="${COMMON_FLAGS}"
+MAKEOPTS="-j6 -l6"
+# USE flags: keep profile defaults; add verified per-package overrides in package.use.
+# VIDEO_CARDS and ABI_X86 will be finalized after graphics/gaming decisions.
