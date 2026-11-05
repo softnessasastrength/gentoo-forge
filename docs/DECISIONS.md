@@ -83,6 +83,13 @@
 - Offline constraints: verify all required inputs and dependencies are present before installation authorization; no silent network fallback or substitution. Warn that full source compilation and package resolution may require additional distfiles/binpkgs beyond a Stage 3 and Portage snapshot; offline completeness must be proven in disposable VM tests.
 - Installer bootstrap remains read-only; no disk writes or destructive install authorization are implied by these decisions.
 
+- Portage package policy: source-first. Compile packages from verified source by default; binary acceleration is optional, scoped to explicitly approved packages or sets, and must never silently enable a binary package repository.
+- Binary package trust: require authenticated repository metadata, trusted signing keys/signatures when available, verified package digests, matching architecture/ABI/USE/profile constraints, and an auditable per-package approval record. Reject unverifiable or mismatched binaries; no silent source/binary substitution.
+- Package resolution: resolve exact Gentoo profile, package atoms, dependency graph, USE flags, ABI_X86 requirements, licenses, masks, keywording, and conflicts against the selected repository snapshot before installation. Present proposed exceptions and obtain explicit approval; fail closed on unresolved dependencies.
+- Reproducibility: record Stage 3 identity, verified release provenance, Gentoo repository snapshot/commit, chosen mirrors, source distfile digests, binary package provenance, selected flags, and package plan in a non-secret installation manifest.
+- Hybrid offline completeness: preflight the full resolved dependency closure and required distfiles/binpkgs for the selected profile, including KDE, kernel, firmware, and gaming packages; do not claim offline-ready from Stage 3 and Portage metadata alone. Missing or unverifiable artifacts block offline installation.
+- Implementation status: package policy is documented, not a working resolver; Portage behavior, signing support, dependency closure, and offline installation require disposable-VM validation.
+
 ## Pending
 
 - Validate package-specific USE flags against current Gentoo tree at install time; no unverified flags committed
