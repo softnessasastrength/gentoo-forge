@@ -97,6 +97,13 @@
 - Log durability: keep a working log in live media memory and persist a sanitized copy to the installed target only after that target is safely mounted and verified. On failures before that point, offer explicit export to user-selected removable media; never assume live media storage is persistent.
 - Resume/recovery implementation status: specification only, not implemented or tested; simulate interruption, corrupt checkpoints, device swaps, and power-loss scenarios in disposable VMs before enabling disk writes.
 
+- Destructive authorization policy: --nuke-it only requests the future guarded installation workflow; it never authorizes writes on its own. The current implementation must continue to refuse all destructive execution.
+- Disk confirmation: display the freshly detected physical disk model, capacity, full serial number, stable device identity, existing partition layout, and proposed replacement; require the operator to type the exact full detected serial number before destructive work. Missing, unreliable, non-unique, or mismatched serials fail closed.
+- Protected disks: refuse without override when the device or any dependent partition is live media, mounted, active swap, running system/root/boot ancestor, RAID/LVM/mapper member with unresolved ownership, or otherwise ambiguous. No --force, --yes, theme setting, or alternate mode may bypass protection.
+- Authorization sequence: enumerate -> establish stable identity -> inspect full dependency graph -> enforce protected-disk rejection -> validate artifacts and partition plan -> present destructive consequences -> collect exact serial -> rediscover and revalidate identity/protection/plan immediately before execution. Any change invalidates authorization.
+- Race/retry protection: never rely on /dev/sdX or /dev/nvmeXnY alone; bind reviewed plan to stable identity and verified device topology. Repeated or interrupted destructive operations require fresh review and confirmation; do not auto-replay from checkpoints.
+- Safety status: policy only; disk-writing implementation remains disabled and untested.
+
 ## Pending
 
 - Validate package-specific USE flags against current Gentoo tree at install time; no unverified flags committed
