@@ -5,7 +5,8 @@
 - Target: dedicated SSD (device identifier not yet selected)
 - Hardware: AMD Ryzen 5 4500 / Radeon RX 6600 XT
 - Init system: OpenRC
-- Stage 3 architecture: amd64 (variant pending)
+- Stage 3: standard amd64 OpenRC, multilib
+- Intended profile: desktop/Plasma/OpenRC (resolve exact profile path against installed Gentoo profile tree)
 - Firmware: UEFI
 - Partition table: GPT
 - Root filesystem: Btrfs
@@ -21,8 +22,7 @@
 
 ## Pending
 
-- Stage 3 variant: standard or hardened; multilib or no-multilib
-- Gentoo profile: desktop/Plasma or another profile
+- Verify exact Plasma/OpenRC profile path and Stage 3 release metadata before bootstrap
 
 - Partition sizes and Btrfs subvolumes
 - Swap capacity: 20 GiB recommended, awaiting confirmation
