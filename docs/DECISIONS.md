@@ -40,6 +40,13 @@
 - Kernel updates: conservative; retain tested primary kernel, matching modules/initramfs, and precompiled fallback kernel
 - GRUB recovery: Btrfs snapshot boot-menu integration plus manual recovery path; verify boot artifacts and avoid stale hibernation resume on rollback
 
+
+- Secure Boot: disabled (explicit choice; no signing enforcement)
+- Firmware policy: Portage-managed firmware and microcode package updates; not unattended firmware flashing
+- CPU microcode: AMD microcode with early loading, verify Dracut and kernel integration
+- GPU firmware: AMDGPU firmware appropriate for Radeon RX 6600 XT, verify initramfs inclusion where necessary
+- Bootloader: GRUB x86-64 UEFI with primary, fallback, and validated Btrfs snapshot recovery entries
+
 ## Pending
 
 - Validate package-specific USE flags against current Gentoo tree at install time; no unverified flags committed
