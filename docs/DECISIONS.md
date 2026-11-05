@@ -55,6 +55,14 @@
 - Hardware clock: UTC
 - Validation pending: verify installed OpenRC NetworkManager service name, dependencies, and runtime operation before enabling installer logic
 
+
+- Regular user: branden (unprivileged desktop account)
+- Privilege elevation: sudo with wheel-group authorization and password authentication; no NOPASSWD default
+- Root account: password-enabled for recovery; password supplied securely at install time, never stored in repository or logs
+- Security baseline: nftables inbound firewall policy, SSH server disabled by default, manually approved system updates
+- Login manager: SDDM for KDE Plasma; verify OpenRC display-manager service and Wayland compatibility
+- Secrets policy: never commit passwords, hashes, tokens, or recovery secrets; prompt securely during authorized installation
+
 ## Pending
 
 - Validate package-specific USE flags against current Gentoo tree at install time; no unverified flags committed
