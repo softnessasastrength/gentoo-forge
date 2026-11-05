@@ -47,6 +47,14 @@
 - GPU firmware: AMDGPU firmware appropriate for Radeon RX 6600 XT, verify initramfs inclusion where necessary
 - Bootloader: GRUB x86-64 UEFI with primary, fallback, and validated Btrfs snapshot recovery entries
 
+
+- Network management: NetworkManager on OpenRC (enable NetworkManager in default runlevel; avoid competing interface managers)
+- Hostname: forge
+- Default locale: en_US.UTF-8
+- Timezone: America/New_York
+- Hardware clock: UTC
+- Validation pending: verify installed OpenRC NetworkManager service name, dependencies, and runtime operation before enabling installer logic
+
 ## Pending
 
 - Validate package-specific USE flags against current Gentoo tree at install time; no unverified flags committed
