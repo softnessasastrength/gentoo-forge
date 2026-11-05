@@ -32,7 +32,7 @@
 
 - Primary kernel: source-built sys-kernel/gentoo-kernel (distribution kernel configuration)
 - Recovery kernel: retain precompiled sys-kernel/gentoo-kernel-bin as fallback; preserve known-good kernel/initramfs/GRUB entry across updates
-- Kernel boot integration: initramfs generator, swap resume UUID, kernel update policy, and GRUB snapshot integration pending explicit decisions
+- Kernel boot integration: Dracut, verified swap resume UUID, conservative updates, and GRUB snapshot integration selected; runtime compatibility and exact installkernel behavior pending validation
 
 
 - Initramfs: Dracut (verify Gentoo installkernel integration and resume module before implementation)
@@ -66,6 +66,11 @@
 - Installation target policy: dedicated SSD is disposable; clean-install workflow may erase it only after live device identity verification, full plan review, and explicit per-device confirmation. No current authorization to execute disk writes.
 
 - Btrfs subvolume policy: minimal separation, root @ mounted at / and home @home mounted at /home, with independent root and home snapshot storage; final Snapper mount paths and GRUB snapshot integration require validation before installer execution.
+
+- EFI System Partition mount: /efi (1 GiB ESP); /boot remains inside the Btrfs root subvolume, not a separate partition.
+- Boot artifacts: GRUB x86-64 UEFI executable and EFI assets on /efi; versioned kernel images, matching Dracut initramfs images, and GRUB configuration in Btrfs /boot. Resolve actual filenames and installkernel behavior at build time; do not hardcode unverified paths.
+- Boot consistency policy: preserve a known-good kernel, matching modules/initramfs, and boot entry across updates; keep gentoo-kernel-bin fallback. Regenerate and validate GRUB entries against actual Btrfs subvolume paths; never claim a root snapshot is bootable without a VM boot test.
+- Snapshot recovery boundary: ESP is outside Btrfs snapshots; maintain an independent EFI/GRUB recovery procedure and test restoration of root snapshots with their matching boot artifacts.
 
 ## Pending
 
