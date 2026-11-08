@@ -124,8 +124,10 @@ class TargetMounts(AbstractContextManager):
                 raise ValueError('Target filesystem identity changed')
         # /run is later recursively bind-mounted into the target. Keeping the
         # target itself beneath /run would recursively include its own mount.
-        self.temporary = tempfile.TemporaryDirectory(prefix='forge-target-', dir='/mnt')
-        self.root = Path(self.temporary.name)
+        # Never use TemporaryDirectory around a mounted filesystem: its GC
+        # finalizer can recursively erase the installation after failed unmounts.
+        self.temporary = tempfile.mkdtemp(prefix='forge-target-', dir='/mnt')
+        self.root = Path(self.temporary)
         try:
             self.mount(['mount', '-t', 'btrfs', '-o', 'subvol=@,nodev,nosuid',
                         self.storage['partitions']['root'], str(self.root)], self.root)
@@ -216,16 +218,18 @@ class TargetMounts(AbstractContextManager):
                 self.swap_active = False
             except (OSError, RuntimeError, subprocess.SubprocessError):
                 failures.append('swap ' + self.storage['partitions']['swap'])
+        remaining_mounts = []
         for target, recursive in reversed(self.mounts):
             try:
                 command(['umount', *(['--recursive'] if recursive else []), str(target)])
             except (OSError, RuntimeError, subprocess.SubprocessError):
                 failures.append(str(target))
-        self.mounts.clear()
+                remaining_mounts.append((target, recursive))
+        self.mounts = list(reversed(remaining_mounts))
         if failures:
             raise RuntimeError('Target cleanup incomplete; inspect and unmount manually: ' + ', '.join(failures))
         if self.temporary:
-            self.temporary.cleanup()
+            os.rmdir(self.temporary)  # Empty mountpoint only; never recursive cleanup.
         return False
 
 

@@ -62,15 +62,12 @@ class BootstrapTests(unittest.TestCase):
                    'filesystems': {p: {'UUID': p, 'TYPE': p} for p in ('root', 'efi', 'swap')}}
         with tempfile.TemporaryDirectory() as directory:
             calls = []
-            class Temporary:
-                name = directory
-                def cleanup(self): pass
             def fake(argv, **kwargs):
                 calls.append(argv)
                 if argv[0] == 'mount' and any('subvol=@home' in a for a in argv):
                     raise RuntimeError('injected mount failure')
                 return ''
-            with patch('os.geteuid', return_value=0), patch('installer.bootstrap.inspect', return_value=target), patch('installer.bootstrap.filesystem', side_effect=lambda path: storage['filesystems'][next(p for p, v in storage['partitions'].items() if v == path)]), patch('installer.bootstrap.tempfile.TemporaryDirectory', return_value=Temporary()), patch('installer.bootstrap.command', side_effect=fake):
+            with patch('os.geteuid', return_value=0), patch('installer.bootstrap.inspect', return_value=target), patch('installer.bootstrap.filesystem', side_effect=lambda path: storage['filesystems'][next(p for p, v in storage['partitions'].items() if v == path)]), patch('installer.bootstrap.tempfile.mkdtemp', return_value=directory), patch('installer.bootstrap.os.rmdir'), patch('installer.bootstrap.command', side_effect=fake):
                 with self.assertRaises(RuntimeError):
                     with TargetMounts(storage):
                         self.fail('must not reach mounted state')
@@ -190,3 +187,20 @@ class BootstrapTests(unittest.TestCase):
         self.assertIn(b'FORGE_TEST_EXIT:0', result)
         self.assertEqual(displayed.getvalue(), 'Guest stage:  extracting archive\n')
         self.assertNotIn('%', displayed.getvalue())
+
+    def test_failed_unmount_never_removes_target_tree_or_loses_mount_records(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            keep = root / 'valuable-target-file'; keep.write_text('preserve')
+            context = TargetMounts({})
+            context.root = root; context.temporary = directory
+            context.mounts = [(root, False)]
+            with patch('installer.bootstrap.command', side_effect=RuntimeError('busy mount')), patch('installer.bootstrap.os.rmdir') as remove:
+                with self.assertRaisesRegex(RuntimeError, 'cleanup incomplete'):
+                    context.__exit__(None, None, None)
+                remove.assert_not_called()
+            self.assertEqual(context.mounts, [(root, False)])
+            del context
+            import gc
+            gc.collect()
+            self.assertEqual(keep.read_text(), 'preserve')
