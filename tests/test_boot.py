@@ -21,6 +21,10 @@ class FakeTarget:
         self.calls.append(argv)
         if self.fail:
             raise RuntimeError('injected package failure')
+        if 'grub-probe' in argv:
+            return ROOT_UUID + '\n'
+        if 'lsinitrd' in argv:
+            return 'dracut modules:\nbtrfs\nresume\n'
         if 'grub-install' in argv:
             efi = self.root / 'efi/EFI/BOOT/BOOTX64.EFI'
             efi.parent.mkdir(parents=True)
@@ -75,3 +79,17 @@ class BootTests(unittest.TestCase):
                 install_boot_stack(target, {'filesystems': {'root': {'UUID': '"; reboot'}, 'swap': {'UUID': SWAP_UUID}}})
             self.assertFalse(target.calls)
             self.assertFalse((target.root / 'etc/kernel/cmdline').exists())
+
+    def test_boot_verification_rejects_wrong_uuid_or_missing_resume(self):
+        for broken in ('uuid', 'resume'):
+            with self.subTest(broken=broken), tempfile.TemporaryDirectory() as directory:
+                class BrokenTarget(FakeTarget):
+                    def chroot(self, argv, timeout=300):
+                        result = super().chroot(argv, timeout)
+                        if broken == 'uuid' and 'grub-probe' in argv:
+                            return SWAP_UUID
+                        if broken == 'resume' and 'lsinitrd' in argv:
+                            return 'btrfs\n'
+                        return result
+                with self.assertRaises(RuntimeError):
+                    install_boot_stack(BrokenTarget(Path(directory)), STORAGE)

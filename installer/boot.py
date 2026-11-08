@@ -81,7 +81,18 @@ def install_boot_stack(target, storage, *, binary_fallback=False, serial_console
     target.chroot(['/usr/bin/env', 'grub-mkconfig', '-o', '/boot/grub/grub.cfg'], timeout=120)
     if not (target.root / 'efi/EFI/BOOT/BOOTX64.EFI').is_file():
         raise RuntimeError('EFI boot file not installed')
-    if not list((target.root / 'boot').glob('vmlinuz-*')) or not list((target.root / 'boot').glob('initramfs-*')):
+    images = sorted((target.root / 'boot').glob('initramfs-*'))
+    if not list((target.root / 'boot').glob('vmlinuz-*')) or not images:
         raise RuntimeError('Target kernel or initramfs missing')
+    target.chroot(['/usr/bin/env', 'grub-script-check', '/boot/grub/grub.cfg'], timeout=120)
+    observed_uuid = target.chroot(['/usr/bin/env', 'grub-probe', '--target=fs_uuid', '/boot'], timeout=120).strip()
+    if observed_uuid != root_uuid:
+        raise RuntimeError('GRUB resolves /boot to an unexpected filesystem UUID')
+    for image in images:
+        if image.is_symlink() or not image.is_file():
+            raise RuntimeError('Unexpected initramfs image type')
+        modules = target.chroot(['/usr/bin/env', 'lsinitrd', '-m', '/boot/' + image.name], timeout=120)
+        if not {'btrfs', 'resume'}.issubset({line.strip() for line in modules.splitlines()}):
+            raise RuntimeError('Generated initramfs lacks required Btrfs/resume modules')
     return {'kernel_package': packages[1], 'binary_fallback': binary_fallback,
             'initramfs': 'dracut with Btrfs/resume', 'bootloader': 'UEFI GRUB removable fallback'}
