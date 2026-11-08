@@ -1,0 +1,15 @@
+#!/bin/sh
+# Executable entry point, independent of shell aliases or the caller's cwd.
+set -eu
+BUTLER_ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+if [ -d "$BUTLER_ROOT/../lib/gentoo-forge/current" ]; then
+    BUTLER_ROOT=$(CDPATH='' cd -- "$BUTLER_ROOT/../lib/gentoo-forge/current" && pwd)
+fi
+if [ -x "$BUTLER_ROOT/python/bin/python3" ]; then
+    exec "$BUTLER_ROOT/python/bin/python3" "$BUTLER_ROOT/butler_cli.py" "$@"
+fi
+if command -v python3 >/dev/null 2>&1; then
+    exec python3 "$BUTLER_ROOT/butler_cli.py" "$@"
+fi
+echo 'butler: Python 3.11+ missing. Install the portable runtime or Python on Gentoo.' >&2
+exit 1

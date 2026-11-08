@@ -5,9 +5,9 @@ import signal
 import codecs
 
 
-async def run(argv, *, cwd=None, timeout=90, stdin=None, on_line=None, limit=1_000_000):
+async def run(argv, *, cwd=None, env=None, timeout=90, stdin=None, on_line=None, limit=1_000_000):
     proc = await asyncio.create_subprocess_exec(
-        *argv, cwd=cwd, start_new_session=True,
+        *argv, cwd=cwd, env=env, start_new_session=True,
         stdin=asyncio.subprocess.PIPE if stdin is not None else asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
         limit=limit + 1)

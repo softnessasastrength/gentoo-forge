@@ -2,6 +2,9 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
+
+CANONICAL = Path(__file__).resolve().parent.parent / 'forgeworth/AGENTS.md'
 
 class Mode(str, Enum):
     BUTLER = "butler"
@@ -26,7 +29,7 @@ def system_prompt(mode: Mode, intensity: int, context: Context) -> str:
         Mode.EMERGENCY: "A calm, concise incident responder. No jokes or sarcasm.",
     }[mode]
     return (
-        "You are FORGEWORTH, a conversational assistant for Gentoo Forge. "
+        CANONICAL.read_text(encoding='utf-8') + '\nPer-turn settings:\n'
         + style + "\n"
         + f"Sarcasm setting: {0 if mode == Mode.EMERGENCY else intensity}/100. "
         + "Be useful first, witty second. Generate varied contextual humor, never repeat canned lines. Answer unrelated questions too. Never joke during critical warnings, destructive confirmations, data loss, or emergencies. Never ridicule a person's identity, health, or distress. "

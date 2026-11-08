@@ -28,4 +28,10 @@ jobs:
       - name: Disposable UEFI process smoke test (software emulation)
         if: matrix.python == '3.12'
         run: python -m tui.qemu --accel tcg
+      - name: Build portable live-CD companion
+        if: matrix.python == '3.12'
+        run: bash build-livecd.sh --output "$RUNNER_TEMP/forgeworth-live"
+      - name: Verify native instructions and target staging without inference
+        if: matrix.python == '3.12'
+        run: python -m tools.check_livecd "$RUNNER_TEMP/forgeworth-live"
 

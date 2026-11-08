@@ -6,3 +6,4 @@ config/hardware.env
 .venv/
 __pycache__/
 *.pyc
+dist/
