@@ -17,7 +17,7 @@ fi
 if [[ "${1:-}" != --python-only ]]; then
   command -v apt-get >/dev/null || { echo 'Requires Debian/Ubuntu apt-get; use --python-only elsewhere.' >&2; exit 1; }
   sudo apt-get update
-  sudo apt-get install --no-install-recommends python3-venv qemu-system-x86 qemu-utils ovmf shellcheck
+  sudo apt-get install --no-install-recommends python3-venv qemu-system-x86 qemu-utils ovmf gpgv shellcheck
 fi
 python3 -m venv "$ROOT_DIR/.venv"
 "$ROOT_DIR/.venv/bin/python" -m pip install -r "$ROOT_DIR/tui/requirements.txt"

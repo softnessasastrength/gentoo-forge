@@ -42,3 +42,9 @@ canonical [personality policy](forgeworth/AGENTS.md) with the Textual interface.
 and proposes allocations only in existing GPT free space. It never resizes or
 clears existing partitions. Physical writes remain qualification-locked. Read
 the [live-CD engineering handoff](docs/LIVE-CD-HANDOFF.md) before continuing work.
+
+The [Handbook traceability matrix](docs/HANDBOOK-COVERAGE.md) maps the complete
+selected installation path to code, tests and verification procedures. The
+[minimal Gentoo VM qualification](docs/MINIMAL-VM.md) runs on a sufficiently
+resourced PC or GitHub runner, with retained boot evidence. It is not a completed
+Plasma installer, and the Chromebook install VM must not be retried after its OOM.
