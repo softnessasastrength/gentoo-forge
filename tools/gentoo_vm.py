@@ -86,9 +86,11 @@ def payload():
     return base64.b64encode(buffer.getvalue()).decode()
 
 
-def qualify(iso, report_directory, accelerator='kvm', stage3=None, memory_mib=2048):
+def qualify(iso, report_directory, accelerator='kvm', stage3=None, memory_mib=2048, network=False):
     if os.geteuid() == 0:
         raise PermissionError('Run the QEMU driver unprivileged')
+    if stage3 and not network:
+        raise ValueError('Stage3 boot qualification requires explicit --network for target packages')
     check_resources(memory_mib)
     iso = Path(iso).resolve()
     if not iso.is_file():
@@ -110,11 +112,11 @@ def qualify(iso, report_directory, accelerator='kvm', stage3=None, memory_mib=20
         argv = ['qemu-system-x86_64', '-name', 'forge-disposable-qualification', '-machine', 'q35',
                 '-accel', accelerator, '-cpu', 'host' if accelerator == 'kvm' else 'qemu64',
                 '-m', str(memory_mib), '-smp', '2', '-nodefaults', '-display', 'none', '-monitor', 'none',
-                '-nic', 'none', '-no-reboot',
+                '-nic', 'user,model=virtio-net-pci' if network else 'none', '-no-reboot',
                 '-drive', f'if=pflash,format=raw,readonly=on,file={code}',
                 '-drive', f'if=pflash,format=raw,file={directory / "vars.fd"}',
                 '-kernel', str(directory / 'kernel'), '-initrd', str(directory / 'initrd'),
-                '-append', f'root=live:CDLABEL={ISO_LABEL} rd.live.dir=/ rd.live.squashimg=image.squashfs cdroot nodhcp console=ttyS0,115200n8 forge_storage_fixture=1',
+                '-append', f'root=live:CDLABEL={ISO_LABEL} rd.live.dir=/ rd.live.squashimg=image.squashfs cdroot {"" if network else "nodhcp"} console=ttyS0,115200n8 forge_storage_fixture=1',
                 '-drive', f'file={iso},format=raw,media=cdrom,readonly=on,if=none,id=cd0',
                 '-device', 'ide-cd,drive=cd0,bus=ide.1',
                 '-drive', f'file={directory / "fixture.qcow2"},format=qcow2,if=none,id=target',
@@ -156,7 +158,7 @@ def qualify(iso, report_directory, accelerator='kvm', stage3=None, memory_mib=20
                         serial.send('export FORGE_STAGE3_SHA256=' + verification['sha256'])
                     serial.send('python3 -m tools.guest_storage_test; echo FORGE_TEST_EXIT:$?')
                     print('Running actual allocation/format/preservation checks inside Gentoo...', flush=True)
-                    output = serial.wait(rb'FORGE_TEST_EXIT:[0-9]+', 1800)
+                    output = serial.wait(rb'FORGE_TEST_EXIT:[0-9]+', 3000)
                     status = int(re.search(rb'FORGE_TEST_EXIT:([0-9]+)', output)[1])
                     match = re.search(rb'FORGE_RESULT:(\{[^\r\n]+\})', output)
                     if status or not match:
@@ -171,7 +173,7 @@ def qualify(iso, report_directory, accelerator='kvm', stage3=None, memory_mib=20
                         socket_path = directory / 'installed.sock'
                         boot_argv = ['qemu-system-x86_64', '-machine', 'q35', '-accel', accelerator,
                                      '-cpu', 'host' if accelerator == 'kvm' else 'qemu64', '-m', str(memory_mib), '-smp', '2',
-                                     '-nodefaults', '-display', 'none', '-monitor', 'none', '-nic', 'none', '-no-reboot',
+                                     '-nodefaults', '-display', 'none', '-monitor', 'none', '-nic', 'user,model=virtio-net-pci' if network else 'none', '-no-reboot',
                                      '-drive', f'if=pflash,format=raw,readonly=on,file={code}',
                                      '-drive', f'if=pflash,format=raw,file={directory / "vars.fd"}',
                                      '-drive', f'file={directory / "fixture.qcow2"},format=qcow2,if=none,id=target',
@@ -194,7 +196,7 @@ def qualify(iso, report_directory, accelerator='kvm', stage3=None, memory_mib=20
                                 raise RuntimeError('Installed boot verification failed; inspect serial.log')
                             process.wait(timeout=60)
                             result['installed_system_boot'] = evidence
-                            result['qualification'] = 'minimal offline Stage3 UEFI boot; full Handbook path incomplete'
+                            result['qualification'] = 'minimal Stage3 UEFI boot with target kernel packages; full Handbook path incomplete'
                             (report_directory / 'RESULT.json').write_text(json.dumps(result, indent=2) + '\n')
                     return result
             finally:
@@ -212,5 +214,6 @@ if __name__ == '__main__':
     parser.add_argument('--accel', choices=('kvm', 'tcg'), default='kvm')
     parser.add_argument('--stage3', type=Path)
     parser.add_argument('--memory-mib', type=int, default=2048)
+    parser.add_argument('--network', action='store_true', help='Allow outbound QEMU user networking for authenticated target packages')
     args = parser.parse_args()
-    print(json.dumps(qualify(args.iso, args.report, args.accel, args.stage3, args.memory_mib), indent=2))
+    print(json.dumps(qualify(args.iso, args.report, args.accel, args.stage3, args.memory_mib, args.network), indent=2))

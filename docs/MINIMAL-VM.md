@@ -21,7 +21,7 @@ bash test-gentoo-vm.sh \
   --iso /chosen/cache/gentoo-iso/install-amd64-minimal-20261101T164556Z.iso \
   --stage3 /chosen/cache/gentoo-stage3 \
   --report /chosen/reports/unique-run \
-  --accel kvm --memory-mib 2048
+  --accel kvm --memory-mib 2048 --network
 ```
 
 Choose new output directories; downloads and reports do not overwrite existing
@@ -40,7 +40,9 @@ and archive hash are verified. Cached signed metadata is reverified before use;
 
 QEMU gets private firmware variables and a newly created regular qcow2 image.
 Only a read-only ISO and, for bootstrap, a read-only Stage3 data device are
-attached. No host block device, shared directory or NIC is attached. The guest
+attached. No host block device or shared directory is attached. Storage-only runs
+have no NIC. Stage3 runs require explicit `--network`, enabling outbound QEMU
+user networking without forwarded ports for authenticated package downloads. The guest
 script additionally requires the explicit kernel fixture marker, UEFI, Gentoo,
 the exact QEMU fixture serial/model and exactly 64 GiB capacity before writes.
 
@@ -60,16 +62,19 @@ The host verifies those observations before recording a successful reboot.
 
 ## Scope and deviations
 
-This minimal offline fixture deliberately uses the verified Gentoo live-media
-kernel/modules. It does not yet prove distribution-kernel package installation,
-repository sync, profile/USE choices, installed network connectivity, Plasma,
-audio/graphics, gaming, hibernation or rollback. Accounts are locked; no test
-password or automatic login is installed. Butler-after-reboot is still pending.
+The minimal fixture installs `gentoo-kernel-bin`, installkernel, dracut, GRUB,
+Btrfs and FAT utilities inside the target after `emerge-webrsync`. The boot-stack
+dependency closure is an explicit VM binary exception; signatures are mandatory
+and USE mismatches may fall back to source. Production source-first configuration
+is still pending. No live-media kernel or host dracut is used for installed boot.
 
-The earlier storage-only run passed. The local full Stage3 run was interrupted;
-remote run 42506097798 completed extraction but failed because the offline live
-guest had no `/etc/resolv.conf`. The corrected fixture explicitly disables the
-DNS requirement while production chroot preparation still requires networking.
-There is no successful installed boot until a retained current CI/PC result
-actually proves it. This fixture is a stepping stone, not the full Handbook
-definition of done. Physical installation remains gated separately.
+This does not yet prove installed network connectivity, Plasma, audio/graphics,
+gaming, hibernation or rollback. Accounts are locked; no test password or automatic
+login is installed. Butler-after-reboot is still pending.
+
+The earlier storage-only run passed. The Chromebook Stage3 run was interrupted.
+Remote run 42506097798 completed extraction but lacked offline DNS; run
+42506708482 passed chroot configuration then exposed missing live-media dracut.
+The updated networked target-package path addresses that architectural problem
+but requires a new remote test. There is no successful installed boot until a
+retained current CI/PC result proves it. Physical installation remains gated.

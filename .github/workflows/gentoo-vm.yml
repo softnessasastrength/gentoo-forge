@@ -34,7 +34,7 @@ jobs:
           --iso "$RUNNER_TEMP/gentoo-iso/install-amd64-minimal-20261101T164556Z.iso"
           --stage3 "$RUNNER_TEMP/gentoo-stage3"
           --report "$RUNNER_TEMP/gentoo-evidence"
-          --accel tcg --memory-mib 2048
+          --accel tcg --memory-mib 2048 --network
       - uses: actions/upload-artifact@v4
         if: always()
         with:
