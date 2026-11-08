@@ -1,18 +1,25 @@
 name: Validate Forgeworth
+permissions:
+  contents: read
 on:
   push:
   pull_request:
 jobs:
   shell:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - name: Install ShellCheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python }}
       - run: pip install -r tui/requirements.txt
       - run: python -m unittest discover -s tests -v
       - name: Validate
         run: bash tests/validate.sh
+

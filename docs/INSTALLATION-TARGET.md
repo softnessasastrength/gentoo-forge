@@ -1,9 +1,10 @@
 # Target and compatibility review
 
-Reviewed 2026-11-08 against the [amd64 Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64/Full/Installation)
-and [Snapper documentation](https://wiki.gentoo.org/wiki/Snapper). These sources
-support the multilib/OpenRC foundation and distinguish snapshot creation from
-working boot rollback. They do not certify this entire workstation configuration.
+Reference targets are the [amd64 Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64/Full/Installation)
+and [Snapper documentation](https://wiki.gentoo.org/wiki/Snapper). A fresh review
+attempt on 2026-11-08 was blocked by the documentation site's robots policy;
+current compatibility has not been independently verified in this session.
+The proposed configuration below is not a certified workstation configuration.
 Current ebuild USE flags and service dependencies still require validation in a
 synced Portage tree before generating install commands.
 
@@ -42,3 +43,4 @@ selected binary exceptions must be explicit and recorded. Initial MAKEOPTS are
   repeated. Test only disposable disks in an isolated VM without host devices.
 
 All of these are pending. Bootstrap through finalization therefore remain locked.
+

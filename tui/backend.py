@@ -61,9 +61,14 @@ class CodexBackend:
                         event = json.loads(line)
                     except ValueError:
                         continue
+                    if not isinstance(event, dict):
+                        continue
+                    if event.get('type') in ('error', 'turn.failed'):
+                        raise BackendError('Codex request failed. Check login status and network access locally.')
                     item = event.get('item', {})
-                    if event.get('type') == 'item.completed' and item.get('type') == 'agent_message':
-                        answers.append(item.get('text', ''))
+                    if (event.get('type') == 'item.completed' and isinstance(item, dict)
+                            and item.get('type') == 'agent_message' and isinstance(item.get('text'), str)):
+                        answers.append(item['text'])
                 answer = '\n'.join(answers).strip()
                 if not answer:
                     raise BackendError('Codex returned no assistant message; check CLI compatibility.')
@@ -71,3 +76,4 @@ class CodexBackend:
                                      {'role': 'assistant', 'content': answer[:12000]}])
                 self.history = self.history[-20:]
                 return answer[:12000]
+

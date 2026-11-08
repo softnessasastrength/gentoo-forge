@@ -2,6 +2,7 @@
 import asyncio
 import json
 import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from .process import run
@@ -35,13 +36,16 @@ class Engine:
     def publish(self, event):
         self.states[event.stage] = event.status
         self.checkpoint.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        temp = self.checkpoint.with_suffix('.tmp')
-        with temp.open('w') as stream:
-            os.chmod(temp, 0o600)
-            json.dump({'version': 1, 'states': self.states}, stream)
-            stream.flush()
-            os.fsync(stream.fileno())
-        temp.replace(self.checkpoint)
+        fd, name = tempfile.mkstemp(prefix='.checkpoint-', dir=self.checkpoint.parent)
+        temp = Path(name)
+        try:
+            with os.fdopen(fd, 'w') as stream:
+                json.dump({'version': 1, 'states': self.states}, stream)
+                stream.flush()
+                os.fsync(stream.fileno())
+            temp.replace(self.checkpoint)
+        finally:
+            temp.unlink(missing_ok=True)
         self.emit(event)
 
     async def execute(self, stage, on_line):
@@ -62,3 +66,4 @@ class Engine:
             except Exception as exc:
                 self.publish(Event(stage, 'failed', type(exc).__name__))
                 raise
+

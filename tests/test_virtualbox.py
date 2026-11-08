@@ -19,7 +19,8 @@ def fixture():
                 {'source': '/dev/sr0', 'target': '/', 'fstype': 'iso9660'}]})}},
             'inventory': {'blockdevices': [dict(path='/dev/sda', name='/dev/sda', type='disk',
                 size=100 * GIB, serial='VB-DISPOSABLE', model='VBOX HARDDISK', wwn=None,
-                uuid=None, ro=False, mountpoints=[None])]}}
+                uuid=None, ro=False, mountpoints=[None]),
+                dict(path='/dev/sr0', type='rom', mountpoints=['/'])]}}
 
 
 class VirtualBoxTests(unittest.TestCase):
@@ -159,3 +160,4 @@ class CollectorTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result['errors'])
         with self.assertRaises(ValueError):
             validate_selection(result, '/dev/sda')
+

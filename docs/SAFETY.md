@@ -17,3 +17,12 @@ VirtualBox mode does not establish disposability or relax any gate. Target check
 use fresh read-only observations and the shared physical-disk validator, and remain
 non-authorizing. Unknown root/swap ancestry or absent serials block validation.
 Reports, VM snapshots and completed checklist attestations never authorize writes.
+
+Root and active swap paths must now actually appear in the observed lsblk tree;
+a plausible `/dev/...` string alone is insufficient. Btrfs subvolume suffixes
+from findmnt are stripped before matching root ancestry. Unresolved aliases,
+mapper paths, swapfiles and incomplete/malformed inventories fail closed. These
+checks do not establish independent proof of completeness or freshness and do
+not enable a write executor. Inspection checkpoints use private unpredictable
+temporary files and atomic replacement, avoiding predictable-temp symlinks.
+

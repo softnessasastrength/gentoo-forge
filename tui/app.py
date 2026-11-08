@@ -20,6 +20,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Footer, Header, Input, Label, ProgressBar, RichLog, Static, Select
 from tui.personality import Context, Mode
 from tui.telemetry import async_snapshot, format_snapshot
+from tui.compilation import LogObserver
 
 CSS = """
 Screen { background: #0d1520; color: #dce7ee; }
@@ -54,7 +55,7 @@ class Forgeworth(App):
     BINDINGS = [("f1", "help", "Help"), ("f2", "focus_chat", "Butler"),
                 ("f3", "focus_logs", "Logs"), ("f4", "virtualbox", "VM test"), ("ctrl+q", "quit", "Quit"), ("escape", "cancel_chat", "Cancel AI")]
 
-    def __init__(self, virtualbox=False) -> None:
+    def __init__(self, virtualbox=False, emerge_log=None) -> None:
         super().__init__()
         self.vbox_active = virtualbox
         self.busy = False
@@ -63,6 +64,7 @@ class Forgeworth(App):
         self.context = Context()
         self.backend = CodexBackend()
         self.chat_worker = None
+        self.compilation = LogObserver(emerge_log) if emerge_log else None
         self.engine = Engine(Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state"))) / "gentoo-forge/checkpoint.json", self.stage_event)
 
     def compose(self) -> ComposeResult:
@@ -74,6 +76,8 @@ class Forgeworth(App):
                     yield Static("Target: not selected  |  OpenRC / Btrfs / Plasma")
                     yield Static("Telemetry: collecting...", id="telemetry")
                     yield Static("Installation: LOCKED  |  Read-only preview")
+                with Collapsible(title="Compilation observations", collapsed=False):
+                    yield Static("No build log attached · package counts unknown", id="compilation")
                 with Vertical(classes="panel", id="progress"):
                     yield Static("STAGE PROGRESS", classes="heading")
                     yield ProgressBar(total=1, show_eta=False, id="bar")
@@ -107,8 +111,18 @@ class Forgeworth(App):
         )
         self.set_interval(3.0, self.refresh_telemetry)
         self.run_worker(self.refresh_telemetry(), group="telemetry", exclusive=True)
+        if self.compilation:
+            self.set_interval(1.0, self.observe_compilation)
         if self.vbox_active:
             self.call_after_refresh(self.query_one("#vbox-section").scroll_visible, animate=False, top=True)
+
+    async def observe_compilation(self) -> None:
+        try:
+            observed = await asyncio.to_thread(self.compilation.poll)
+            message = observed.describe()
+        except (OSError, ValueError):
+            message = "External compilation log unavailable · counts unknown"
+        self.query_one('#compilation', Static).update(Text(message))
 
     async def refresh_telemetry(self) -> None:
         try:
@@ -275,5 +289,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="FORGEWORTH read-only inspection and VirtualBox smoke-test guide")
     parser.add_argument("--virtualbox", action="store_true", help="Open the safe VirtualBox guided workflow")
+    parser.add_argument("--emerge-log", type=Path, help="Observe new records from a regular emerge log (read-only)")
     args = parser.parse_args()
-    Forgeworth(virtualbox=args.virtualbox).run()
+    Forgeworth(virtualbox=args.virtualbox, emerge_log=args.emerge_log).run()
+

@@ -42,7 +42,7 @@ def _meminfo(path: Path) -> tuple[int | None, int | None]:
     return values.get("MemTotal"), values.get("MemAvailable")
 
 
-def _temperature(root: Path) -> float | None:
+def _temperature(root: Path, hwmon: Path | None = None) -> float | None:
     # Only identified CPU zones qualify; motherboard/GPU zones are not CPU telemetry.
     for path in sorted(root.glob("thermal_zone*/temp")):
         try:
@@ -54,10 +54,25 @@ def _temperature(root: Path) -> float | None:
                 return round(value, 1)
         except (OSError, UnicodeError, ValueError):
             continue
+    # Ryzen generally exposes k10temp through hwmon rather than thermal zones.
+    if hwmon is not None:
+        for sensor in sorted(hwmon.glob('hwmon*/name')):
+            try:
+                if sensor.read_text(encoding='ascii').strip() not in ('k10temp', 'zenpower', 'coretemp'):
+                    continue
+                for label in sorted(sensor.parent.glob('temp*_label')):
+                    if label.read_text(encoding='ascii').strip() not in ('Tdie', 'Tctl', 'Package id 0'):
+                        continue
+                    value = int(label.with_name(label.name.replace('_label', '_input')).read_text()) / 1000
+                    if -20 <= value <= 125:
+                        return round(value, 1)
+            except (OSError, UnicodeError, ValueError):
+                continue
     return None
 
 
-def snapshot(proc: Path = Path("/proc"), thermal: Path = Path("/sys/class/thermal")) -> Snapshot:
+def snapshot(proc: Path = Path("/proc"), thermal: Path = Path("/sys/class/thermal"),
+             hwmon: Path | None = None) -> Snapshot:
     total, available = _meminfo(proc / "meminfo")
     try:
         load = float((proc / "loadavg").read_text(encoding="ascii").split()[0])
@@ -73,7 +88,7 @@ def snapshot(proc: Path = Path("/proc"), thermal: Path = Path("/sys/class/therma
         memory_total_kib=total,
         memory_available_kib=available,
         uptime_seconds=uptime,
-        cpu_temp_c=_temperature(thermal),
+        cpu_temp_c=_temperature(thermal, hwmon),
     )
 
 
@@ -99,4 +114,5 @@ async def async_snapshot() -> Snapshot:
 if __name__ == '__main__':
     import json
     from dataclasses import asdict
-    print(json.dumps(asdict(snapshot())))
+    print(json.dumps(asdict(snapshot(hwmon=Path('/sys/class/hwmon')))))
+

@@ -25,6 +25,26 @@ Expand the workflow to inspect stage state. Select Butler, Engineer, Roast or
 Emergency and sarcasm intensity. Emergency always suppresses sarcasm. Telemetry
 is host load and memory; missing or unidentified CPU temperature is unknown.
 
+### Observe an existing compilation
+
+```bash
+python -m tui.app --emerge-log /var/log/emerge.log
+```
+
+This reads newly appended records from an explicitly chosen regular file; it
+does not start emerge or install packages. The compilation panel identifies its
+source as an external log, separate from installer state. Package totals are
+accepted only after observing a package-1 start record. Mid-build attachment,
+interleaved builds and incomplete evidence keep counts unknown. Completion
+records count packages, never elapsed-time progress or a predicted ETA. Rotation
+and truncation reset observations. Symlinks and nonregular files are refused;
+reads are bounded and run outside the UI event loop. No compilation data is
+automatically shared with Codex. The selected file must be readable by your
+ordinary account; do not run the UI as root to read it.
+
+Identified Ryzen k10temp/zenpower and Intel coretemp package sensors are now
+supported through hwmon. GPU and unlabelled sensors never become CPU telemetry.
+
 ## Codex authentication and data sharing
 
 Install Codex CLI separately. Check `codex --version`, `codex exec --help` and
@@ -71,3 +91,4 @@ read-only detection, offline troubleshooting and reports. Set
 `FORGEWORTH_VBOX_REPORT` to a chosen `.json` path for persistent reports across
 reboots. See [VirtualBox setup and reporting](VIRTUALBOX.md). Disk safeguards and
 locked installation stages apply equally to virtual and physical machines.
+

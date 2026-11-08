@@ -260,7 +260,23 @@ def validate_selection(facts, path, expected=None):
     # Swapfiles and mapper paths need an additional ancestry resolver, not a guess.
     if swaps is not None and any(not re.fullmatch(r'/dev/(?:sd[a-z]+\d*|vd[a-z]+\d*|nvme\d+n\d+(?:p\d+)?)', path) for path in swaps):
         raise ValueError('Swap ancestry cannot be resolved; target validation blocked')
-    disk = validate_target(inventory, path, [roots[0]['source']], swaps)
+    # A syntactically plausible /dev source is not evidence of resolved ancestry.
+    # Btrfs findmnt sources can contain a subvolume suffix, e.g. /dev/sda3[/@].
+    root_path = roots[0]['source'].split('[', 1)[0]
+    known = set()
+    pending = list(inventory.get('blockdevices', [])) if isinstance(inventory, dict) else []
+    while pending:
+        node = pending.pop()
+        if not isinstance(node, dict) or not isinstance(node.get('path'), str):
+            raise ValueError('Device ancestry inventory is malformed')
+        known.add(node['path'])
+        children = node.get('children', [])
+        if not isinstance(children, list):
+            raise ValueError('Device ancestry inventory is malformed')
+        pending.extend(children)
+    if root_path not in known or swaps is None or any(device not in known for device in swaps):
+        raise ValueError('Root or swap ancestry is unresolved; target validation blocked')
+    disk = validate_target(inventory, path, [root_path], swaps)
     if expected is not None:
         identity = {'path': disk.path, 'size': disk.size, 'model': disk.model, 'serial': disk.serial}
         proposal = {key: expected.get(key) for key in identity}
@@ -392,3 +408,4 @@ if __name__ == '__main__':
         print(json.dumps(local_facts(sys.argv[2])))
     else:
         raise SystemExit('Internal read-only collector: --facts STORAGE_DIRECTORY')
+
