@@ -141,7 +141,7 @@ class TargetMounts(AbstractContextManager):
             self.__exit__(*__import__('sys').exc_info())
             raise
 
-    def pseudo(self):
+    def pseudo(self, *, require_dns=True):
         for name in ('proc', 'sys', 'dev', 'run'):
             target = self.root / name
             target.mkdir(exist_ok=True)
@@ -150,7 +150,13 @@ class TargetMounts(AbstractContextManager):
             else:
                 self.mount(['mount', '--rbind', '/' + name, str(target)], target, recursive=True)
                 command(['mount', '--make-rslave', str(target)])
-        write_target(self.root, 'etc/resolv.conf', Path('/etc/resolv.conf').read_text())
+        try:
+            resolver = Path('/etc/resolv.conf').read_text()
+        except FileNotFoundError as exc:
+            if require_dns:
+                raise RuntimeError('Live DNS configuration is missing; establish networking before package installation') from exc
+            resolver = '# Explicit offline fixture: no DNS resolver configured.\n'
+        write_target(self.root, 'etc/resolv.conf', resolver)
 
     def chroot(self, argv, timeout=300):
         if not argv or not argv[0].startswith('/'):

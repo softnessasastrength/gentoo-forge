@@ -67,6 +67,9 @@ audio/graphics, gaming, hibernation or rollback. Accounts are locked; no test
 password or automatic login is installed. Butler-after-reboot is still pending.
 
 The earlier storage-only run passed. The local full Stage3 run was interrupted;
-there is no successful installed boot until a retained current CI/PC result
+remote run 42506097798 completed extraction but failed because the offline live
+guest had no `/etc/resolv.conf`. The corrected fixture explicitly disables the
+DNS requirement while production chroot preparation still requires networking.
+There is no successful installed boot until a retained current CI/PC result
 actually proves it. This fixture is a stepping stone, not the full Handbook
 definition of done. Physical installation remains gated separately.

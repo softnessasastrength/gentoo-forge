@@ -94,3 +94,19 @@ class BootstrapTests(unittest.TestCase):
         for memory in (256, 1024, 16384, True):
             with self.assertRaises(ValueError):
                 check_resources(memory, 'MemAvailable: 50000000 kB\n')
+
+    def test_offline_dns_is_explicit_and_never_fabricates_a_resolver(self):
+        for required in (True, False):
+            with tempfile.TemporaryDirectory() as directory:
+                context = TargetMounts({})
+                context.root = Path(directory)
+                with patch('installer.bootstrap.command', return_value=''), patch('installer.bootstrap.Path.read_text', side_effect=FileNotFoundError):
+                    if required:
+                        with self.assertRaisesRegex(RuntimeError, 'DNS configuration is missing'):
+                            context.pseudo()
+                    else:
+                        context.pseudo(require_dns=False)
+                if not required:
+                    text = (Path(directory) / 'etc/resolv.conf').read_text()
+                    self.assertIn('offline fixture', text)
+                    self.assertNotIn('nameserver', text)

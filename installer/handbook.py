@@ -21,7 +21,7 @@ class Requirement:
 REQUIREMENTS = (
     Requirement('media', 'Media', 'Authenticated live media and portable runtime', 'tools/fetch_gentoo_fixture.py', 'tests/test_media.py', 'Verify release signature/hash and boot actual Gentoo', 'vm-verified'),
     Requirement('live-image', 'Media', 'Bootable Forge USB/external SSD image', '', '', 'Boot generated Forge image on disposable UEFI VM', 'pending'),
-    Requirement('preflight', 'Networking', 'Architecture, UEFI, memory, clock, DNS/HTTPS and prerequisites', '', '', 'Fail closed for unsupported boot/network/resource state', 'pending'),
+    Requirement('preflight', 'Networking', 'Architecture, UEFI, memory, clock, DNS/HTTPS and prerequisites', 'installer/preflight.py', 'tests/test_preflight.py', 'Fail closed for unsupported boot/network/resource state', 'implemented'),
     Requirement('wifi', 'Networking', 'Optional Wi-Fi/static IP/proxy setup', '', '', 'Manual setup using Gentoo live networking tools; no credentials logged', 'manual-only', False),
     Requirement('disk-identity', 'Disks', 'Explicit serial, kernel identity, mounted ancestry and swap checks', 'installer/storage.py', 'tests/test_storage.py', 'Fresh observations and mounted-descendant rejection', 'vm-verified'),
     Requirement('disk-authorization', 'Disks', 'Separate --nuke-it and exact identity/extent confirmation', 'installer/partition_plan.py', 'tests/test_partition_plan.py', 'Reject changed identity/plan, noninteractive and generic yes', 'unit-tested'),

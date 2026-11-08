@@ -4,14 +4,14 @@ Reference: https://wiki.gentoo.org/wiki/Handbook:AMD64/Full/Installation. Retrie
 
 The selected path is UEFI/GPT, OpenRC multilib, Btrfs, distribution kernel/dracut and GRUB.
 Implemented, unit-tested, integration-verified, VM-verified and hardware-verified are distinct states.
-Test file references identify planned/existing coverage; only retained run evidence proves execution.
+Test file references identify coverage; retained run evidence proves actual execution.
 No hardware verification or complete installed-system boot is currently claimed.
 
 | ID | Handbook area | Applicable behavior | Implementation | Automated coverage | Verification procedure | Current evidence |
 |---|---|---|---|---|---|---|
 | media | Media | Authenticated live media and portable runtime | tools/fetch_gentoo_fixture.py | tests/test_media.py | Verify release signature/hash and boot actual Gentoo | vm-verified |
 | live-image | Media | Bootable Forge USB/external SSD image | Pending | Pending | Boot generated Forge image on disposable UEFI VM | pending |
-| preflight | Networking | Architecture, UEFI, memory, clock, DNS/HTTPS and prerequisites | Pending | Pending | Fail closed for unsupported boot/network/resource state | pending |
+| preflight | Networking | Architecture, UEFI, memory, clock, DNS/HTTPS and prerequisites | installer/preflight.py | tests/test_preflight.py | Fail closed for unsupported boot/network/resource state | implemented |
 | wifi | Networking | Optional Wi-Fi/static IP/proxy setup | Pending | Pending | Manual setup using Gentoo live networking tools; no credentials logged | manual-only |
 | disk-identity | Disks | Explicit serial, kernel identity, mounted ancestry and swap checks | installer/storage.py | tests/test_storage.py | Fresh observations and mounted-descendant rejection | vm-verified |
 | disk-authorization | Disks | Separate --nuke-it and exact identity/extent confirmation | installer/partition_plan.py | tests/test_partition_plan.py | Reject changed identity/plan, noninteractive and generic yes | unit-tested |
@@ -66,7 +66,9 @@ No hardware verification or complete installed-system boot is currently claimed.
 
 ## Evidence boundary
 
-`dist/gentoo-storage-test-1/RESULT.json` recorded a real Gentoo UEFI VM storage pass, including an unchanged entire NTFS fixture hash.
-The subsequent minimal-install attempt ended during Stage3 extraction under memory pressure; it produced no RESULT.json.
-Current implementation and remote qualification workflow: [MINIMAL-VM.md](MINIMAL-VM.md).
-The machine-readable registry is `python -m installer.handbook`. Its completion flag remains false while required stages lack VM evidence.
+The recorded Gentoo UEFI VM storage run passed, including an unchanged entire NTFS fixture hash.
+The Chromebook minimal attempt stopped during Stage3 extraction after host memory pressure.
+Remote run 42506097798 completed extraction, then failed at missing offline DNS configuration; no installed boot was recorded.
+Current remote qualification procedure and limitations: [MINIMAL-VM.md](MINIMAL-VM.md).
+The machine-readable registry is `python -m installer.handbook`. Its completion flag stays false while required stages lack VM evidence.
+Regenerate this file with `python -m tools.render_handbook`; CI checks it remains synchronized.
