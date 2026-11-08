@@ -10,6 +10,7 @@ import os
 from pathlib import Path, PurePosixPath
 import posixpath
 import shutil
+import signal
 import stat
 import subprocess
 import tarfile
@@ -161,7 +162,38 @@ class TargetMounts(AbstractContextManager):
     def chroot(self, argv, timeout=300):
         if not argv or not argv[0].startswith('/'):
             raise ValueError('Chroot programs require explicit absolute paths')
-        return command(['chroot', str(self.root), *argv], timeout=timeout)
+        # Compilation output can be enormous. Spool it outside RAM, and retain
+        # a bounded diagnostic tail on failure instead of hiding Portage errors.
+        with tempfile.TemporaryFile(dir=self.root / 'var/tmp') as output:
+            process = subprocess.Popen(['chroot', str(self.root), *argv],
+                                       stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
+                                       start_new_session=True,
+                                       env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'})
+            try:
+                returncode = process.wait(timeout=timeout)
+            finally:
+                # Cover timeout, cancellation and children left after leader exit.
+                try:
+                    os.killpg(process.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                process.wait(timeout=10)
+            length = output.tell()
+            output.seek(max(0, length - 16384))
+            tail = output.read().decode('utf-8', errors='replace')
+            # Untrusted compiler/package text must not emit terminal controls.
+            tail = ''.join(c if c in '\n\t' or c.isprintable() else '?' for c in tail)
+            if returncode:
+                raise RuntimeError(f'Target {Path(argv[0]).name} failed with exit {returncode}:\n{tail}')
+            return tail
 
     def __exit__(self, *args):
         failures = []

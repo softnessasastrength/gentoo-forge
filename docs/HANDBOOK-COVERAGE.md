@@ -31,8 +31,8 @@ No hardware verification or complete installed-system boot is currently claimed.
 | news-world | Base | News review, world update and safe maintenance | Pending | Pending | Report unread news; run selected world update and verify dependency plan | pending |
 | locale | Base | America/New_York and en_US.UTF-8 generation/selection | installer/bootstrap.py | tests/test_bootstrap.py | Check target localtime, locale -a and configured LANG | implemented |
 | firmware | Kernel | AMDGPU firmware and AMD microcode | Pending | Pending | Install selected firmware and inspect initramfs contents | pending |
-| dist-kernel | Kernel | Gentoo distribution kernel via installkernel | Pending | Pending | Install distribution-kernel package with validated grub/dracut flags | pending |
-| initramfs | Kernel | Dracut Btrfs and resume support | tools/guest_storage_test.py | Pending | Generate normal image and boot; live kernel fallback is fixture-only | implemented |
+| dist-kernel | Kernel | Gentoo distribution kernel via installkernel | installer/boot.py | tests/test_boot.py | Install distribution-kernel package with validated grub/dracut flags | unit-tested |
+| initramfs | Kernel | Dracut Btrfs and resume support | installer/boot.py | tests/test_boot.py | Generate image through target installkernel and independently boot it | implemented |
 | hibernate | Kernel | Verified hibernate/resume using selected swap UUID | Pending | Pending | Actual guest/hardware hibernate and resume; VM saved state is insufficient | pending |
 | fstab | System | UUID-based root/home/snapshots/ESP/swap mounts | installer/bootstrap.py | tests/test_bootstrap.py | Read mounts after installed-system boot and compare UUIDs/subvolumes | implemented |
 | hostname | System | Hostname forge and local hosts | installer/bootstrap.py | tests/test_bootstrap.py | Check hostname after first boot | implemented |
@@ -43,7 +43,7 @@ No hardware verification or complete installed-system boot is currently claimed.
 | clock | Tools | Installed time synchronization | Pending | Pending | Chrony service and synchronization report after boot | pending |
 | fs-tools | Tools | Installed Btrfs/FAT filesystem utilities | Pending | Pending | Verify tools exist in target, not only on live media | pending |
 | ssh | Tools | Optional SSH and shell completion | Pending | Pending | Explicit opt-in only, no root password login by default | manual-only |
-| grub | Bootloader | GRUB UEFI installation and generated boot configuration | tools/guest_storage_test.py | Pending | Inspect ESP file and boot with ISO detached; fixture config is not production | implemented |
+| grub | Bootloader | GRUB UEFI installation and generated boot configuration | installer/boot.py | tests/test_boot.py | Inspect target-generated GRUB config and boot with ISO detached | implemented |
 | reboot | Finalizing | Independent installed-system first boot | tools/gentoo_vm.py | Pending | OVMF boots target alone; actual root UUID/OpenRC/home/EFI evidence | implemented |
 | cleanup | Finalizing | Unmounts, stage archive cleanup and recovery checkpoints | installer/bootstrap.py | tests/test_bootstrap.py | Interrupt and repeat supported stages without reformatting | partial |
 | plasma | Desktop extension | Plasma, SDDM, Wayland and XWayland | Pending | Pending | Actual SDDM user login and desktop/session verification | pending |

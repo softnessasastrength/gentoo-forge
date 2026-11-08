@@ -8,6 +8,7 @@ import time
 
 from installer.storage import Audit, command, inspect, prepare, read_plan
 from installer.bootstrap import TargetMounts, extract, base_configuration, write_target
+from installer.boot import install_boot_stack
 
 
 def minimal_system(storage):
@@ -40,42 +41,8 @@ def minimal_system(storage):
         # Fixture accounts stay locked; no default passwords or autologin.
         target.chroot(['/usr/bin/env', 'passwd', '-l', 'root'])
         target.chroot(['/usr/bin/env', 'passwd', '-l', 'branden'])
+        boot = install_boot_stack(target, storage, binary_fallback=True, serial_console=True, jobs=2, load=2)
         root_uuid = storage['filesystems']['root']['UUID']
-        swap_uuid = storage['filesystems']['swap']['UUID']
-        cmdline = f'root=UUID={root_uuid} rootfstype=btrfs rootflags=subvol=@ resume=UUID={swap_uuid} console=ttyS0,115200n8'
-        write_target(target.root, 'etc/kernel/cmdline', cmdline + '\n')
-        write_target(target.root, 'etc/default/grub',
-                     'GRUB_TIMEOUT=0\nGRUB_TERMINAL="serial"\nGRUB_SERIAL_COMMAND="serial --speed=115200"\n'
-                     + f'GRUB_CMDLINE_LINUX="{cmdline}"\n')
-        make_conf = target.root / 'etc/portage/make.conf'
-        original = make_conf.read_text()
-        write_target(target.root, 'etc/portage/make.conf', original +
-                     '\nGRUB_PLATFORMS="efi-64"\nMAKEOPTS="-j2 -l2"\n'
-                     'FEATURES="${FEATURES} binpkg-request-signature"\n')
-        write_target(target.root, 'etc/portage/binrepos.conf/forge.conf',
-                     '[gentoo]\npriority = 10\nsync-uri = https://distfiles.gentoo.org/releases/amd64/binpackages/23.0/x86-64/\n')
-        write_target(target.root, 'etc/portage/package.use/forge-kernel',
-                     'sys-kernel/installkernel dracut grub\n')
-        write_target(target.root, 'etc/dracut.conf.d/forge.conf',
-                     'hostonly="no"\nadd_dracutmodules+=" btrfs resume "\n')
-        print('FORGE_PHASE: authenticating repository and installing target boot packages', flush=True)
-        target.chroot(['/usr/bin/emerge-webrsync'], timeout=600)
-        # Explicit binary exception for the VM boot-stack dependency closure.
-        # All binaries require signatures; production remains source-first.
-        packages = ['sys-kernel/installkernel', 'sys-kernel/gentoo-kernel-bin',
-                    'sys-boot/grub', 'sys-fs/btrfs-progs', 'sys-fs/dosfstools']
-        options = ['/usr/bin/emerge', '--getbinpkg=y', '--usepkg=y',
-                   '--binpkg-respect-use=y', '--autounmask=n', '--verbose']
-        target.chroot([*options, '--pretend', *packages], timeout=300)
-        target.chroot([*options, *packages], timeout=2400)
-        print('FORGE_PHASE: installing target UEFI GRUB into the private ESP', flush=True)
-        target.chroot(['/usr/bin/grub-install', '--target=x86_64-efi', '--efi-directory=/efi',
-                       '--boot-directory=/boot', '--removable', '--no-nvram', '--recheck'], timeout=120)
-        target.chroot(['/usr/bin/grub-mkconfig', '-o', '/boot/grub/grub.cfg'], timeout=120)
-        if not (target.root / 'efi/EFI/BOOT/BOOTX64.EFI').is_file():
-            raise RuntimeError('EFI boot file not installed')
-        if not list((target.root / 'boot').glob('vmlinuz-*')) or not list((target.root / 'boot').glob('initramfs-*')):
-            raise RuntimeError('Target kernel or initramfs missing')
         boot_check = '''#!/bin/sh
 uuid=$(findmnt -n -o UUID /)
 fs=$(findmnt -n -o FSTYPE /)
@@ -93,7 +60,7 @@ exit 0
         target.chroot(['/usr/bin/env', 'rc-update', 'add', 'local', 'default'])
         storage['minimal_stage3_extracted'] = True
         storage['chroot_verified'] = True
-        storage['kernel_source'] = 'sys-kernel/gentoo-kernel-bin: explicit signed binary VM fallback'
+        storage['boot_stack'] = boot
         storage['initramfs'] = 'generated with dracut for Btrfs/resume'
         storage['bootloader'] = 'UEFI GRUB removable fallback in private ESP'
         storage['portage_sync'] = 'emerge-webrsync completed in target'

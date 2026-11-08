@@ -78,7 +78,7 @@ class Serial:
 
 def payload():
     buffer = io.BytesIO()
-    files = ['installer/__init__.py', 'installer/storage.py', 'installer/partition_plan.py', 'installer/bootstrap.py',
+    files = ['installer/__init__.py', 'installer/storage.py', 'installer/partition_plan.py', 'installer/bootstrap.py', 'installer/boot.py',
              'tui/__init__.py', 'tui/safety.py', 'tools/guest_storage_test.py']
     with tarfile.open(fileobj=buffer, mode='w:gz') as archive:
         for name in files:

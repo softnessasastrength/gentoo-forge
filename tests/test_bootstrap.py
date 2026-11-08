@@ -110,3 +110,38 @@ class BootstrapTests(unittest.TestCase):
                     text = (Path(directory) / 'etc/resolv.conf').read_text()
                     self.assertIn('offline fixture', text)
                     self.assertNotIn('nameserver', text)
+
+    def test_chroot_supervision_preserves_arguments_and_reports_bounded_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'var/tmp').mkdir(parents=True)
+            context = TargetMounts({})
+            context.root = root
+            from unittest.mock import Mock
+            process = Mock(pid=987654)
+            process.wait.return_value = 2
+            def spawn(argv, **kwargs):
+                self.assertEqual(argv[-1], 'argument with spaces; $(false)')
+                self.assertTrue(kwargs['start_new_session'])
+                kwargs['stdout'].write(b'x' * 20000 + b'\x1bFailure detail')
+                return process
+            with patch('installer.bootstrap.subprocess.Popen', side_effect=spawn), patch('installer.bootstrap.os.killpg') as kill:
+                with self.assertRaisesRegex(RuntimeError, 'Failure detail') as failure:
+                    context.chroot(['/usr/bin/false', 'argument with spaces; $(false)'])
+                self.assertLess(len(str(failure.exception)), 17000)
+                self.assertNotIn('\x1b', str(failure.exception))
+                self.assertEqual(kill.call_count, 2)
+
+    def test_chroot_timeout_stops_entire_process_group(self):
+        import subprocess
+        from unittest.mock import Mock
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'var/tmp').mkdir(parents=True)
+            context = TargetMounts({}); context.root = root
+            process = Mock(pid=987654)
+            process.wait.side_effect = [subprocess.TimeoutExpired('chroot', .01), 0, 0]
+            with patch('installer.bootstrap.subprocess.Popen', return_value=process), patch('installer.bootstrap.os.killpg') as kill:
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    context.chroot(['/usr/bin/sleep', '999'], timeout=.01)
+                self.assertEqual(kill.call_count, 2)
