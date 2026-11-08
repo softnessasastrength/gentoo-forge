@@ -79,7 +79,9 @@ class Serial:
 def payload():
     buffer = io.BytesIO()
     files = ['installer/__init__.py', 'installer/storage.py', 'installer/partition_plan.py', 'installer/bootstrap.py', 'installer/boot.py',
-             'tui/__init__.py', 'tui/safety.py', 'tools/guest_storage_test.py']
+             'tui/__init__.py', 'tui/safety.py', 'tui/personality.py', 'tui/process.py',
+             'tools/guest_storage_test.py', 'tools/install_butler.py', 'butler', 'butler_cli.py',
+             'docs/BUTLER.md', 'forgeworth/AGENTS.md']
     with tarfile.open(fileobj=buffer, mode='w:gz') as archive:
         for name in files:
             archive.add(ROOT / name, arcname=name)

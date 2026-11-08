@@ -26,7 +26,7 @@ REQUIREMENTS = (
     Requirement('disk-identity', 'Disks', 'Explicit serial, kernel identity, mounted ancestry and swap checks', 'installer/storage.py', 'tests/test_storage.py', 'Fresh observations and mounted-descendant rejection', 'vm-verified'),
     Requirement('disk-authorization', 'Disks', 'Separate --nuke-it and exact identity/extent confirmation', 'installer/partition_plan.py', 'tests/test_partition_plan.py', 'Reject changed identity/plan, noninteractive and generic yes', 'unit-tested'),
     Requirement('gpt', 'Disks', 'GPT free-space allocation preserving existing entries', 'installer/storage.py', 'tests/test_partition_plan.py', 'Compare old entry and entire synthetic NTFS hash before/after', 'vm-verified'),
-    Requirement('gpt-recovery', 'Disks', 'GPT backup and interrupted allocation recovery', '', '', 'Interrupt write stages and independently recover partition table', 'pending'),
+    Requirement('gpt-recovery', 'Disks', 'GPT backup and interrupted allocation recovery', 'installer/storage.py', 'tests/test_storage.py', 'Private hashed backup implemented; interrupted recovery execution still pending', 'partial'),
     Requirement('filesystems', 'Disks', '1 GiB FAT32 EFI, 20 GiB swap, remaining Btrfs', 'installer/storage.py', 'tests/test_storage.py', 'Read actual filesystem types, UUIDs and GPT sector extents', 'vm-verified'),
     Requirement('subvolumes', 'Disks', 'Independent root/home and snapshot subvolumes', 'tools/guest_storage_test.py', '', 'Create/show @, @home, @snapshots, @home_snapshots in Gentoo VM', 'vm-verified'),
     Requirement('swap-active', 'Disks', 'Controlled installation swap activation and cleanup', '', '', 'Activate only selected swap; verify UUID and deactivate during cleanup', 'pending'),

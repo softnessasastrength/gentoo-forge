@@ -9,6 +9,7 @@ import time
 from installer.storage import Audit, command, inspect, prepare, read_plan
 from installer.bootstrap import TargetMounts, extract, base_configuration, write_target
 from installer.boot import install_boot_stack
+from tools.install_butler import install as install_butler
 
 
 def minimal_system(storage):
@@ -43,6 +44,7 @@ def minimal_system(storage):
         target.chroot(['/usr/bin/env', 'passwd', '-l', 'branden'])
         boot = install_boot_stack(target, storage, binary_fallback=True, serial_console=True, jobs=2, load=2)
         root_uuid = storage['filesystems']['root']['UUID']
+        install_butler(target.root)
         boot_check = '''#!/bin/sh
 uuid=$(findmnt -n -o UUID /)
 fs=$(findmnt -n -o FSTYPE /)
@@ -50,9 +52,11 @@ home=$(findmnt -n -o FSROOT /home)
 init=$(cat /proc/1/comm)
 efi=false; [ -d /sys/firmware/efi ] && efi=true
 iso=false; [ -b /dev/sr0 ] && iso=true
+butler=false
+if su -s /bin/sh branden -c 'command -v butler && butler --offline' >/var/log/forge-butler-check.log 2>&1 && grep -q 'FORGEWORTH offline help' /var/log/forge-butler-check.log; then butler=true; fi
 ok=false
-if [ "$uuid" = "ROOT_UUID" ] && [ "$fs" = btrfs ] && [ "$home" = /@home ] && [ "$init" = init ] && [ "$efi" = true ] && [ "$iso" = false ] && [ -f /run/openrc/softlevel ]; then ok=true; fi
-printf 'FORGE_BOOT_RESULT:{"passed":%s,"root_uuid":"%s","root_fs":"%s","home_subvolume":"%s","pid1":"%s","uefi":%s,"iso_present":%s}\\n' "$ok" "$uuid" "$fs" "$home" "$init" "$efi" "$iso"
+if [ "$uuid" = "ROOT_UUID" ] && [ "$fs" = btrfs ] && [ "$home" = /@home ] && [ "$init" = init ] && [ "$efi" = true ] && [ "$iso" = false ] && [ "$butler" = true ] && [ -f /run/openrc/softlevel ]; then ok=true; fi
+printf 'FORGE_BOOT_RESULT:{"passed":%s,"root_uuid":"%s","root_fs":"%s","home_subvolume":"%s","pid1":"%s","uefi":%s,"iso_present":%s,"butler_user_offline":%s}\\n' "$ok" "$uuid" "$fs" "$home" "$init" "$efi" "$iso" "$butler"
 (sleep 2; poweroff) &
 exit 0
 '''.replace('ROOT_UUID', root_uuid)
@@ -65,6 +69,7 @@ exit 0
         storage['bootloader'] = 'UEFI GRUB removable fallback in private ESP'
         storage['portage_sync'] = 'emerge-webrsync completed in target'
         storage['desktop'] = 'not installed'
+        storage['butler'] = 'staged permanent executable; ordinary-user offline check required after boot, Codex inference not tested'
         storage['account_passwords'] = 'locked in unattended VM fixture'
 
 

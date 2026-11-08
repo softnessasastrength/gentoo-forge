@@ -70,7 +70,10 @@ is still pending. No live-media kernel or host dracut is used for installed boot
 
 This does not yet prove installed network connectivity, Plasma, audio/graphics,
 gaming, hibernation or rollback. Accounts are locked; no test password or automatic
-login is installed. Butler-after-reboot is still pending.
+login is installed. The fixture now stages the permanent Butler executable and
+requires an ordinary-user `butler --offline` check after boot. That proves launcher
+persistence/PATH only; native Codex discovery and live inference after reboot
+still require separate verification. No credentials are copied to the fixture.
 
 The earlier storage-only run passed. The Chromebook Stage3 run was interrupted.
 Remote run 42506097798 completed extraction but lacked offline DNS; run

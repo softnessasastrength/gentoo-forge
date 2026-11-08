@@ -16,7 +16,7 @@ No hardware verification or complete installed-system boot is currently claimed.
 | disk-identity | Disks | Explicit serial, kernel identity, mounted ancestry and swap checks | installer/storage.py | tests/test_storage.py | Fresh observations and mounted-descendant rejection | vm-verified |
 | disk-authorization | Disks | Separate --nuke-it and exact identity/extent confirmation | installer/partition_plan.py | tests/test_partition_plan.py | Reject changed identity/plan, noninteractive and generic yes | unit-tested |
 | gpt | Disks | GPT free-space allocation preserving existing entries | installer/storage.py | tests/test_partition_plan.py | Compare old entry and entire synthetic NTFS hash before/after | vm-verified |
-| gpt-recovery | Disks | GPT backup and interrupted allocation recovery | Pending | Pending | Interrupt write stages and independently recover partition table | pending |
+| gpt-recovery | Disks | GPT backup and interrupted allocation recovery | installer/storage.py | tests/test_storage.py | Private hashed backup implemented; interrupted recovery execution still pending | partial |
 | filesystems | Disks | 1 GiB FAT32 EFI, 20 GiB swap, remaining Btrfs | installer/storage.py | tests/test_storage.py | Read actual filesystem types, UUIDs and GPT sector extents | vm-verified |
 | subvolumes | Disks | Independent root/home and snapshot subvolumes | tools/guest_storage_test.py | Pending | Create/show @, @home, @snapshots, @home_snapshots in Gentoo VM | vm-verified |
 | swap-active | Disks | Controlled installation swap activation and cleanup | Pending | Pending | Activate only selected swap; verify UUID and deactivate during cleanup | pending |

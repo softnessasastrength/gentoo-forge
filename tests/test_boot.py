@@ -21,7 +21,7 @@ class FakeTarget:
         self.calls.append(argv)
         if self.fail:
             raise RuntimeError('injected package failure')
-        if argv[0] == '/usr/bin/grub-install':
+        if 'grub-install' in argv:
             efi = self.root / 'efi/EFI/BOOT/BOOTX64.EFI'
             efi.parent.mkdir(parents=True)
             efi.write_bytes(b'fixture')
@@ -63,7 +63,7 @@ class BootTests(unittest.TestCase):
             target = FakeTarget(Path(directory), fail=True)
             with self.assertRaises(RuntimeError):
                 install_boot_stack(target, STORAGE)
-            self.assertFalse(any('grub-install' in a[0] for a in target.calls))
+            self.assertFalse(any('grub-install' in a for a in target.calls))
 
     def test_invalid_inputs_rejected_before_writes(self):
         with tempfile.TemporaryDirectory() as directory:

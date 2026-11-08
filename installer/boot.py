@@ -76,9 +76,9 @@ def install_boot_stack(target, storage, *, binary_fallback=False, serial_console
     target.chroot([*options, '--pretend', *packages], timeout=300)
     target.chroot([*options, *packages], timeout=2400)
     print('FORGE_PHASE: installing target UEFI GRUB into the private ESP', flush=True)
-    target.chroot(['/usr/bin/grub-install', '--target=x86_64-efi', '--efi-directory=/efi',
+    target.chroot(['/usr/bin/env', 'grub-install', '--target=x86_64-efi', '--efi-directory=/efi',
                    '--boot-directory=/boot', '--removable', '--no-nvram', '--recheck'], timeout=120)
-    target.chroot(['/usr/bin/grub-mkconfig', '-o', '/boot/grub/grub.cfg'], timeout=120)
+    target.chroot(['/usr/bin/env', 'grub-mkconfig', '-o', '/boot/grub/grub.cfg'], timeout=120)
     if not (target.root / 'efi/EFI/BOOT/BOOTX64.EFI').is_file():
         raise RuntimeError('EFI boot file not installed')
     if not list((target.root / 'boot').glob('vmlinuz-*')) or not list((target.root / 'boot').glob('initramfs-*')):
