@@ -21,11 +21,19 @@ class AppTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.sleep(.15)
                     return 'An observed answer.'
                 app.backend.answer = reply
-                operation = asyncio.create_task(app.demo_progress())
+                inspection_started = asyncio.Event()
+                finish_inspection = asyncio.Event()
+                async def inspect(*args):
+                    inspection_started.set()
+                    await finish_inspection.wait()
+                app.engine.execute = inspect
+                operation = asyncio.create_task(app.readonly_stage('preflight'))
+                await inspection_started.wait()
                 app.query_one('#prompt', Input).value = 'hello'
                 await pilot.press('enter')
                 await pilot.pause(.25)
                 self.assertTrue(app.busy)
+                finish_inspection.set()
                 await operation
                 self.assertTrue(app.chat_worker.is_finished)
                 await pilot.press('f3')

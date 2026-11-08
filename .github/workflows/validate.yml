@@ -22,4 +22,10 @@ jobs:
       - run: python -m unittest discover -s tests -v
       - name: Validate
         run: bash tests/validate.sh
+      - name: Install firmware smoke-test dependencies
+        if: matrix.python == '3.12'
+        run: sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf
+      - name: Disposable UEFI process smoke test (software emulation)
+        if: matrix.python == '3.12'
+        run: python -m tui.qemu --accel tcg
 

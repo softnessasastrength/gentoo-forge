@@ -15,3 +15,8 @@ For a disposable VirtualBox trial, run `python -m tui.app --virtualbox` or press
 The [VirtualBox guide](docs/VIRTUALBOX.md) covers host resource checks, ISO setup,
 read-only diagnostics, explicit disk validation and JSON/text report export.
 This guided milestone does not claim a completed installation.
+
+## Development on Debian / Crostini
+
+Run `bash setup-dev.sh` from the repository root. See [QEMU smoke testing](docs/QEMU.md)
+for an unprivileged disposable firmware-process test and Crostini resource limits.
