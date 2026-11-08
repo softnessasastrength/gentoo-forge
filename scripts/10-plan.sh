@@ -11,5 +11,5 @@ disk="$(sed -nE 's/^TARGET_DISK="?([^"#]*)"?$/\1/p' "$CONFIG" | head -n1)"
 if lsblk -nr -o MOUNTPOINTS "$disk" | grep -q '[^[:space:]]'; then echo 'Target or child partition is mounted; refusing' >&2; exit 1; fi
 printf 'PLAN ONLY (no writes)\nTarget: %s\n' "$disk"
 lsblk -o NAME,PATH,SIZE,FSTYPE,MOUNTPOINTS,MODEL "$disk"
-printf '\nSuggested future layout: EFI system partition + Btrfs root.\n'
+printf '\nProposed GPT/UEFI layout: 1 GiB EFI + 20 GiB swap + remaining Btrfs.\nIndependent root/home snapshots; hibernation and rollback require boot verification.\n'
 printf 'Partitioning, formatting and installation are NOT implemented in this milestone.\n'

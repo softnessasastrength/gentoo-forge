@@ -1,13 +1,37 @@
-name: Validate shell scripts
+name: Validate Forgeworth
+permissions:
+  contents: read
 on:
   push:
   pull_request:
 jobs:
   shell:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - name: Install ShellCheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -r tui/requirements.txt
+      - run: python -m unittest discover -s tests -v
       - name: Validate
         run: bash tests/validate.sh
+      - name: Install firmware smoke-test dependencies
+        if: matrix.python == '3.12'
+        run: sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf
+      - name: Disposable UEFI process smoke test (software emulation)
+        if: matrix.python == '3.12'
+        run: python -m tui.qemu --accel tcg
+      - name: Build portable live-CD companion
+        if: matrix.python == '3.12'
+        run: bash build-livecd.sh --output "$RUNNER_TEMP/forgeworth-live"
+      - name: Verify native instructions and target staging without inference
+        if: matrix.python == '3.12'
+        run: python -m tools.check_livecd "$RUNNER_TEMP/forgeworth-live"
+
