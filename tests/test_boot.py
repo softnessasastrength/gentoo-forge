@@ -14,6 +14,9 @@ class FakeTarget:
         self.root = root
         self.calls = []
         self.fail = fail
+        profiles = root / 'var/db/repos/gentoo/profiles'
+        (profiles / 'default/linux/amd64/23.0').mkdir(parents=True)
+        (profiles / 'profiles.desc').write_text('amd64 default/linux/amd64/23.0 stable\n')
         (root / 'etc/portage').mkdir(parents=True)
         (root / 'etc/portage/make.conf').write_text('COMMON_FLAGS="-O2 -pipe"\n')
 

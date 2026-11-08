@@ -163,3 +163,30 @@ class BootstrapTests(unittest.TestCase):
                 self.assertIn(unittest.mock.call(['swapon', '--priority', '10', '/dev/mock-swap']), command.call_args_list)
                 self.assertIn(unittest.mock.call(['swapoff', '/dev/mock-swap'], timeout=120), command.call_args_list)
                 self.assertFalse(context.swap_active)
+
+    def test_auto_accelerator_uses_actual_api_and_falls_back_without_permission_changes(self):
+        from tools.gentoo_vm import resolve_accelerator
+        with patch('tools.gentoo_vm.os.open', return_value=123) as opened, patch('tools.gentoo_vm.os.close') as closed, patch('tools.gentoo_vm.fcntl.ioctl', return_value=12):
+            self.assertEqual(resolve_accelerator('auto'), 'kvm')
+            self.assertEqual(opened.call_args.args[0], '/dev/kvm')
+            closed.assert_called_once_with(123)
+        with patch('tools.gentoo_vm.os.open', side_effect=PermissionError):
+            self.assertEqual(resolve_accelerator('auto'), 'tcg')
+        with patch('tools.gentoo_vm.os.open') as opened:
+            self.assertEqual(resolve_accelerator('tcg'), 'tcg')
+            opened.assert_not_called()
+        with self.assertRaises(ValueError):
+            resolve_accelerator('arbitrary')
+
+    def test_serial_reports_fragmented_stage_without_claiming_completion(self):
+        from contextlib import redirect_stdout
+        from tools.gentoo_vm import Serial
+        from unittest.mock import Mock
+        connection = Mock()
+        connection.recv.side_effect = [b'FORGE_PHA', b'SE: extracting archive\r\n', b'FORGE_TEST_EXIT:0']
+        log = io.BytesIO(); displayed = io.StringIO()
+        with redirect_stdout(displayed):
+            result = Serial(connection, log).wait(rb'FORGE_TEST_EXIT:0', 1)
+        self.assertIn(b'FORGE_TEST_EXIT:0', result)
+        self.assertEqual(displayed.getvalue(), 'Guest stage:  extracting archive\n')
+        self.assertNotIn('%', displayed.getvalue())

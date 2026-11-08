@@ -27,8 +27,12 @@ bash test-gentoo-vm.sh \
 Choose new output directories; downloads and reports do not overwrite existing
 data. Use explicit `--accel tcg` when KVM is unavailable. It is substantially
 slower. The GitHub workflow `Gentoo live-media qualification` runs this job on
-an external runner and retains serial/QEMU logs and structured results, including
-logs on failure. No VM is part of normal unit-test discovery.
+an external runner with 4 GiB guest RAM and retains serial/QEMU logs and structured results, including
+logs on failure. CI uses `--accel auto`: it queries the accessible KVM API and
+uses KVM only when available, otherwise TCG. It never changes `/dev/kvm` permissions.
+The selected accelerator and memory are recorded in the result. Guest stage
+messages stream to the CI log; they are activity reports, not completion percentages.
+No VM is part of normal unit-test discovery.
 
 ## What the test actually does
 

@@ -28,13 +28,13 @@ jobs:
         run: python -m tools.fetch_gentoo_fixture --output "$RUNNER_TEMP/gentoo-iso"
       - name: Authenticate OpenRC multilib Stage3
         run: python -m installer.media --output "$RUNNER_TEMP/gentoo-stage3"
-      - name: Install and boot minimal disposable Gentoo (software emulation)
+      - name: Install and boot minimal disposable Gentoo (KVM when accessible)
         run: >-
           python -m tools.gentoo_vm
           --iso "$RUNNER_TEMP/gentoo-iso/install-amd64-minimal-20261101T164556Z.iso"
           --stage3 "$RUNNER_TEMP/gentoo-stage3"
           --report "$RUNNER_TEMP/gentoo-evidence"
-          --accel tcg --memory-mib 2048 --network
+          --accel auto --memory-mib 4096 --network
       - uses: actions/upload-artifact@v4
         if: always()
         with:

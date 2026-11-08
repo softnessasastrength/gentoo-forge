@@ -5,6 +5,7 @@ dependencies belong in setup-dev.sh; this driver installs no host packages.
 """
 import argparse
 import base64
+import fcntl
 import hashlib
 import io
 import json
@@ -29,6 +30,23 @@ ISO_LABEL = 'Gentoo-amd64-20261101'
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def resolve_accelerator(requested):
+    if requested not in ('auto', 'kvm', 'tcg'):
+        raise ValueError('Unsupported VM accelerator')
+    if requested != 'auto':
+        return requested
+    # A capability query creates no VM and never changes device permissions.
+    try:
+        fd = os.open('/dev/kvm', os.O_RDWR | os.O_CLOEXEC)
+        try:
+            available = fcntl.ioctl(fd, 0xAE00, 0) == 12  # KVM_GET_API_VERSION
+        finally:
+            os.close(fd)
+    except OSError:
+        available = False
+    return 'kvm' if available else 'tcg'
+
+
 def check_resources(memory_mib, meminfo=None):
     if type(memory_mib) is not int or not 1536 <= memory_mib <= 8192:
         raise ValueError('Gentoo qualification requires 1536–8192 MiB guest RAM')
@@ -50,6 +68,7 @@ class Serial:
         self.connection.settimeout(1)
         self.logfile = logfile
         self.buffer = bytearray()
+        self.phase_tail = b''
 
     def wait(self, pattern, timeout):
         deadline = time.monotonic() + timeout
@@ -65,6 +84,13 @@ class Serial:
                 continue
             if not chunk:
                 raise RuntimeError('Guest serial connection ended before expected evidence')
+            lines = (self.phase_tail + chunk).split(b'\n')
+            self.phase_tail = lines.pop()[-2048:]
+            for line in lines:
+                marker = re.search(rb'(?:^|FORGE# )FORGE_PHASE:([^\r\n]{1,240})', line)
+                if marker:
+                    detail = marker[1].decode('utf-8', errors='replace')
+                    print('Guest stage: ' + ''.join(c for c in detail if c.isprintable()), flush=True)
             self.logfile.write(chunk)
             self.logfile.flush()
             self.buffer.extend(chunk)
@@ -78,7 +104,7 @@ class Serial:
 
 def payload():
     buffer = io.BytesIO()
-    files = ['installer/__init__.py', 'installer/storage.py', 'installer/partition_plan.py', 'installer/bootstrap.py', 'installer/boot.py',
+    files = ['installer/__init__.py', 'installer/storage.py', 'installer/partition_plan.py', 'installer/bootstrap.py', 'installer/boot.py', 'installer/portage.py',
              'tui/__init__.py', 'tui/safety.py', 'tui/personality.py', 'tui/process.py',
              'tools/guest_storage_test.py', 'tools/install_butler.py', 'butler', 'butler_cli.py',
              'docs/BUTLER.md', 'forgeworth/AGENTS.md']
@@ -93,7 +119,9 @@ def qualify(iso, report_directory, accelerator='kvm', stage3=None, memory_mib=20
         raise PermissionError('Run the QEMU driver unprivileged')
     if stage3 and not network:
         raise ValueError('Stage3 boot qualification requires explicit --network for target packages')
+    accelerator = resolve_accelerator(accelerator)
     check_resources(memory_mib)
+    print(f'Qualification resources: {accelerator}, {memory_mib} MiB guest RAM', flush=True)
     iso = Path(iso).resolve()
     if not iso.is_file():
         raise ValueError('ISO must be a regular file')
@@ -166,6 +194,7 @@ def qualify(iso, report_directory, accelerator='kvm', stage3=None, memory_mib=20
                     if status or not match:
                         raise RuntimeError('Gentoo qualification failed; inspect serial.log')
                     result = json.loads(match[1])
+                    result['vm_resources'] = {'accelerator': accelerator, 'memory_mib': memory_mib}
                     (report_directory / 'RESULT.json').write_text(json.dumps(result, indent=2) + '\n')
                     # Keep only evidence; never retain/attach a host block device.
                     serial.send('poweroff')
@@ -213,7 +242,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--iso', type=Path, required=True)
     parser.add_argument('--report', type=Path, required=True)
-    parser.add_argument('--accel', choices=('kvm', 'tcg'), default='kvm')
+    parser.add_argument('--accel', choices=('auto', 'kvm', 'tcg'), default='kvm')
     parser.add_argument('--stage3', type=Path)
     parser.add_argument('--memory-mib', type=int, default=2048)
     parser.add_argument('--network', action='store_true', help='Allow outbound QEMU user networking for authenticated target packages')

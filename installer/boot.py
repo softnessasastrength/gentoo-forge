@@ -5,8 +5,10 @@ This module never selects, partitions or formats a disk and accepts no shell tex
 The caller retains responsibility for target identity and human authorization.
 """
 import re
+from pathlib import Path
 
 from .bootstrap import write_target
+from .portage import CompilerSettings, configure_compiler, select_profile
 
 
 # Executed by the target's own Python/Portage after repository authentication.
@@ -64,6 +66,8 @@ def install_boot_stack(target, storage, *, binary_fallback=False, serial_console
                  'hostonly="no"\nadd_dracutmodules+=" btrfs resume "\n')
     print('FORGE_PHASE: authenticating repository and installing target boot packages', flush=True)
     target.chroot(['/usr/bin/emerge-webrsync'], timeout=600)
+    selected_profile = select_profile(target, 'minimal')
+    compiler = configure_compiler(target, CompilerSettings.for_cpu(Path('/proc/cpuinfo').read_text(), jobs, load))
     write_target(target.root, 'var/lib/gentoo-forge/verify-kernel-use.py', IUSE_PROBE)
     target.chroot(['/usr/bin/python3', '/var/lib/gentoo-forge/verify-kernel-use.py'], timeout=120)
     # Explicit binary exception for the VM boot-stack dependency closure.
@@ -94,5 +98,5 @@ def install_boot_stack(target, storage, *, binary_fallback=False, serial_console
         modules = target.chroot(['/usr/bin/env', 'lsinitrd', '-m', '/boot/' + image.name], timeout=120)
         if not {'btrfs', 'resume'}.issubset({line.strip() for line in modules.splitlines()}):
             raise RuntimeError('Generated initramfs lacks required Btrfs/resume modules')
-    return {'kernel_package': packages[1], 'binary_fallback': binary_fallback,
+    return {'profile': selected_profile, 'compiler': compiler, 'kernel_package': packages[1], 'binary_fallback': binary_fallback,
             'initramfs': 'dracut with Btrfs/resume', 'bootloader': 'UEFI GRUB removable fallback'}

@@ -22,10 +22,10 @@ No hardware verification or complete installed-system boot is currently claimed.
 | swap-active | Disks | Controlled installation swap activation and cleanup | installer/bootstrap.py | tests/test_bootstrap.py | Activate only selected swap; verify UUID and deactivate during cleanup | unit-tested |
 | stage3-auth | Stage | Select and authenticate official OpenRC multilib Stage3 | installer/media.py | tests/test_media.py | Trusted primary fingerprint, signed index/checksum, exact archive hash/size | integration-verified |
 | stage3-extract | Stage | Validated xattrs/numeric-owner extraction onto target | installer/bootstrap.py | tests/test_bootstrap.py | Extract signed real Stage3 and inspect resulting root | implemented |
-| compile | Stage | Hardware-compatible compiler flags and configurable concurrency | Pending | Pending | Check actual target ISA and emitted make.conf; compile a package | pending |
+| compile | Stage | Hardware-compatible compiler flags and configurable concurrency | installer/portage.py | tests/test_portage.py | Ryzen 5 4500 uses znver2; unknown CPU uses x86-64; actual package compilation still pending | unit-tested |
 | chroot | Base | Pseudo-filesystems, DNS, isolated propagation and cleanup | installer/bootstrap.py | tests/test_bootstrap.py | Run target executable; unwind mounts after success and injected failure | implemented |
 | repos | Base | Authenticated repository bootstrap and synchronization | Pending | Pending | Run verified webrsync/sync and inspect repository signature settings | pending |
-| profile | Base | Select actual available stable Plasma/OpenRC multilib profile | Pending | Pending | Resolve from synced profiles.desc and verify selected profile | pending |
+| profile | Base | Select actual available stable Plasma/OpenRC multilib profile | installer/portage.py | tests/test_portage.py | Resolve exact minimal/Plasma profile from profiles.desc; verify OpenRC/multilib inside target | unit-tested |
 | use | Base | Per-package USE/IUSE, CPU_FLAGS_X86, graphics and multilib ABI validation | Pending | Pending | Portage metadata validation plus readable emerge pretend plan | pending |
 | licenses | Base | Explicit package licenses and source-first binary exceptions | Pending | Pending | No global permissive license or binary preference; inspect emerge plan | pending |
 | news-world | Base | News review, world update and safe maintenance | Pending | Pending | Report unread news; run selected world update and verify dependency plan | pending |
