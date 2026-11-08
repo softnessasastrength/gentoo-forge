@@ -20,6 +20,7 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: pip install -r tui/requirements.txt
       - run: python -m unittest discover -s tests -v
+      - run: python -m tools.render_handbook --check
       - name: Validate
         run: bash tests/validate.sh
       - name: Install firmware smoke-test dependencies
