@@ -101,6 +101,41 @@ def extract(path, root, expected_sha256, expected_size):
             raise RuntimeError('Stage3 extraction verification failed: ' + name)
 
 
+SUBVOLUMES = ('@', '@home', '@snapshots', '@home_snapshots')
+
+
+def create_subvolumes(storage):
+    """Create/verify independent top-level subvolumes without replacing anything."""
+    if os.geteuid() != 0:
+        raise PermissionError('Subvolume setup requires separate root execution')
+    if inspect(storage['target']['path']) != Target(**storage['target']):
+        raise ValueError('Disk identity changed before subvolume setup')
+    device = storage['partitions']['root']
+    found = filesystem(device)
+    if found['TYPE'] != 'btrfs' or found['UUID'] != storage['filesystems']['root']['UUID']:
+        raise ValueError('Btrfs filesystem identity changed')
+    directory = tempfile.mkdtemp(prefix='forge-subvolumes-', dir='/mnt')
+    mounted = False
+    try:
+        command(['mount', '-t', 'btrfs', '-o', 'subvolid=5,nodev,nosuid', device, directory])
+        mounted = True
+        for name in SUBVOLUMES:
+            path = Path(directory) / name
+            if path.is_symlink():
+                raise ValueError('Refusing subvolume symlink')
+            if not path.exists():
+                command(['btrfs', 'subvolume', 'create', str(path)])
+            # A pre-existing ordinary directory is not a usable subvolume.
+            command(['btrfs', 'subvolume', 'show', str(path)])
+    finally:
+        if mounted:
+            command(['umount', directory])
+        # Failure to unmount intentionally leaves the mountpoint for recovery.
+        # No recursive cleanup or temporary-directory finalizer is permitted.
+        os.rmdir(directory)
+    return {'filesystem_uuid': found['UUID'], 'subvolumes': list(SUBVOLUMES)}
+
+
 class TargetMounts(AbstractContextManager):
     def __init__(self, storage):
         self.storage = storage

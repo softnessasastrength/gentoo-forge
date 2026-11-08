@@ -18,7 +18,7 @@ No hardware verification or complete installed-system boot is currently claimed.
 | gpt | Disks | GPT free-space allocation preserving existing entries | installer/storage.py | tests/test_partition_plan.py | Compare old entry and entire synthetic NTFS hash before/after | vm-verified |
 | gpt-recovery | Disks | GPT backup and interrupted allocation recovery | installer/storage.py | tests/test_storage.py | Private hashed backup implemented; interrupted recovery execution still pending | partial |
 | filesystems | Disks | 1 GiB FAT32 EFI, 20 GiB swap, remaining Btrfs | installer/storage.py | tests/test_storage.py | Read actual filesystem types, UUIDs and GPT sector extents | vm-verified |
-| subvolumes | Disks | Independent root/home and snapshot subvolumes | tools/guest_storage_test.py | Pending | Create/show @, @home, @snapshots, @home_snapshots in Gentoo VM | vm-verified |
+| subvolumes | Disks | Independent root/home and snapshot subvolumes | installer/bootstrap.py | tests/test_bootstrap.py | Reusable helper creates/verifies top-level subvolumes; renewed VM verification pending | unit-tested |
 | swap-active | Disks | Controlled installation swap activation and cleanup | installer/bootstrap.py | tests/test_bootstrap.py | Activate only selected swap; verify UUID and deactivate during cleanup | unit-tested |
 | stage3-auth | Stage | Select and authenticate official OpenRC multilib Stage3 | installer/media.py | tests/test_media.py | Trusted primary fingerprint, signed index/checksum, exact archive hash/size | integration-verified |
 | stage3-extract | Stage | Validated xattrs/numeric-owner extraction onto target | installer/bootstrap.py | tests/test_bootstrap.py | Extract signed real Stage3 and inspect resulting root | implemented |

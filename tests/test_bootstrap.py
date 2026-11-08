@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from installer.bootstrap import TargetMounts, base_configuration, validate_archive, write_target
+from installer.bootstrap import TargetMounts, base_configuration, validate_archive, write_target, create_subvolumes
 from installer.storage import Target
 from tools.gentoo_vm import check_resources
 
@@ -204,3 +204,27 @@ class BootstrapTests(unittest.TestCase):
             import gc
             gc.collect()
             self.assertEqual(keep.read_text(), 'preserve')
+
+    def test_subvolumes_are_created_at_top_level_and_unmounted(self):
+        target = Target('/dev/mock', 'SERIAL', 'MODEL', 64 * 1024**3, '8:0')
+        storage = {'target': target.__dict__, 'partitions': {'root': '/dev/mock3'},
+                   'filesystems': {'root': {'UUID': 'UUID'}}}
+        with tempfile.TemporaryDirectory() as directory:
+            with patch('installer.bootstrap.os.geteuid', return_value=0), patch('installer.bootstrap.inspect', return_value=target), patch('installer.bootstrap.filesystem', return_value={'TYPE': 'btrfs', 'UUID': 'UUID'}), patch('installer.bootstrap.tempfile.mkdtemp', return_value=directory), patch('installer.bootstrap.os.rmdir') as remove, patch('installer.bootstrap.command') as command:
+                result = create_subvolumes(storage)
+                calls = [call.args[0] for call in command.call_args_list]
+                self.assertEqual(calls[0], ['mount', '-t', 'btrfs', '-o', 'subvolid=5,nodev,nosuid', '/dev/mock3', directory])
+                self.assertEqual(calls[-1], ['umount', directory])
+                self.assertEqual([c[-1] for c in calls if c[:3] == ['btrfs', 'subvolume', 'create']],
+                                 [directory + '/' + name for name in ('@', '@home', '@snapshots', '@home_snapshots')])
+                self.assertEqual(result['filesystem_uuid'], 'UUID')
+                remove.assert_called_once_with(directory)
+
+    def test_subvolume_setup_rejects_changed_filesystem_before_mount(self):
+        target = Target('/dev/mock', 'SERIAL', 'MODEL', 64 * 1024**3, '8:0')
+        storage = {'target': target.__dict__, 'partitions': {'root': '/dev/mock3'},
+                   'filesystems': {'root': {'UUID': 'EXPECTED'}}}
+        with patch('installer.bootstrap.os.geteuid', return_value=0), patch('installer.bootstrap.inspect', return_value=target), patch('installer.bootstrap.filesystem', return_value={'TYPE': 'btrfs', 'UUID': 'OTHER'}), patch('installer.bootstrap.command') as command:
+            with self.assertRaisesRegex(ValueError, 'identity changed'):
+                create_subvolumes(storage)
+            command.assert_not_called()

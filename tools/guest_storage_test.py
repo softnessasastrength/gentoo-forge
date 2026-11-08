@@ -7,7 +7,7 @@ import subprocess
 import time
 
 from installer.storage import Audit, command, inspect, prepare, read_plan
-from installer.bootstrap import TargetMounts, extract, base_configuration, write_target
+from installer.bootstrap import TargetMounts, extract, base_configuration, write_target, create_subvolumes
 from installer.boot import install_boot_stack
 from tools.install_butler import install as install_butler
 
@@ -112,12 +112,9 @@ def main():
             pass
         else:
             raise RuntimeError('Mounted descendant did not block target authorization')
-        for name in ('@', '@home', '@snapshots', '@home_snapshots'):
-            command(['btrfs', 'subvolume', 'create', '/run/forge-mount/' + name])
-            command(['btrfs', 'subvolume', 'show', '/run/forge-mount/' + name])
-        result['subvolumes'] = 'created and inspected in Gentoo VM'
     finally:
         command(['umount', '/run/forge-mount'])
+    result['subvolumes'] = create_subvolumes(result)
     if os.environ.get('FORGE_STAGE3_SIZE'):
         minimal_system(result)
         if hash_partition('/dev/sda1') != before:
