@@ -43,10 +43,12 @@ def _meminfo(path: Path) -> tuple[int | None, int | None]:
 
 
 def _temperature(root: Path) -> float | None:
-    # Thermal zones are not necessarily CPU sensors. Display as a generic
-    # temperature until an identified CPU sensor is available.
+    # Only identified CPU zones qualify; motherboard/GPU zones are not CPU telemetry.
     for path in sorted(root.glob("thermal_zone*/temp")):
         try:
+            kind = (path.parent / "type").read_text(encoding="ascii").strip().lower()
+            if kind not in ("x86_pkg_temp", "cpu-thermal", "k10temp", "zenpower"):
+                continue
             value = int(path.read_text(encoding="ascii").strip()) / 1000
             if -20 <= value <= 125:
                 return round(value, 1)
@@ -78,5 +80,23 @@ def snapshot(proc: Path = Path("/proc"), thermal: Path = Path("/sys/class/therma
 def format_snapshot(data: Snapshot) -> str:
     load = f"{data.load_1m:.2f}" if data.load_1m is not None else "unknown"
     mem = f"{data.memory_used_percent:.1f}%" if data.memory_used_percent is not None else "unknown"
-    temp = f"{data.cpu_temp_c:.1f}°C (thermal zone)" if data.cpu_temp_c is not None else "unknown"
+    temp = f"{data.cpu_temp_c:.1f}°C (identified CPU zone)" if data.cpu_temp_c is not None else "unknown"
     return f"Load 1m: {load} | RAM used: {mem} | Temp: {temp}"
+
+
+async def async_snapshot() -> Snapshot:
+    """Isolate potentially slow proc/sysfs reads without blocking the UI loop."""
+    import json
+    import sys
+    from .process import run
+    code, output = await run([sys.executable, '-m', 'tui.telemetry'],
+                             cwd=Path(__file__).resolve().parent.parent, timeout=3)
+    if code:
+        raise OSError('Telemetry collector failed')
+    return Snapshot(**json.loads(output))
+
+
+if __name__ == '__main__':
+    import json
+    from dataclasses import asdict
+    print(json.dumps(asdict(snapshot())))

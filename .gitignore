@@ -2,3 +2,7 @@ config/hardware.env
 *.log
 *.swp
 .DS_Store
+
+.venv/
+__pycache__/
+*.pyc

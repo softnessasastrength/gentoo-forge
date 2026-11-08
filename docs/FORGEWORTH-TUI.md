@@ -1,10 +1,11 @@
-# Forgeworth full-screen preview
+# FORGEWORTH
 
-This is an **experimental read-only preview**, not a working installer. Never run an unreviewed installer against a disk containing important data.
+A responsive Textual inspection console and optional Codex conversational butler.
+Installation writes remain locked pending isolated VM qualification.
 
-## Launch
+## Setup and launch
 
-From the repository root, in a Python virtual environment:
+Requires Linux, Python 3.11+, bash, lsblk and findmnt. Run as an ordinary user:
 
 ```bash
 python3 -m venv .venv
@@ -13,23 +14,52 @@ pip install -r tui/requirements.txt
 python -m tui.app
 ```
 
-The interface provides a hardware panel, a progress panel, a scrolling operations log, and a separate chat pane. Press F1 for help, F2 to focus chat, F3 for logs. The **Demo** button displays explicitly simulated progress. Preflight and Plan call the existing read-only shell scripts; Plan requires the existing hardware config and a valid unmounted whole disk. The progress bar is indeterminate for real operations rather than fabricating completion percentages.
+Preflight streams real read-only host information. Plan uses
+`config/hardware.env` copied from the example and requires an explicitly selected
+unmounted whole disk. It never modifies that disk. Demo is clearly simulated.
+Unknown operation duration uses indeterminate progress. No package or elapsed-time
+completion estimate is fabricated. Narrow terminals stack the panes vertically.
 
-## Optional Codex chat
+F1 help, F2 chat, F3 logs, Escape cancel AI, Ctrl+Q quit, Tab/Shift+Tab navigate.
+Expand the workflow to inspect stage state. Select Butler, Engineer, Roast or
+Emergency and sarcasm intensity. Emergency always suppresses sarcasm. Telemetry
+is host load and memory; missing or unidentified CPU temperature is unknown.
 
-Codex CLI must be installed and authenticated separately. To opt in:
+## Codex authentication and data sharing
+
+Install Codex CLI separately. Check `codex --version`, `codex exec --help` and
+`codex login --help` for your version. Authenticate with `codex login` or, where
+supported, `codex login --device-auth`; inspect `codex login status`. Do not paste
+keys into chat or configuration. A reported login can still be expired.
 
 ```bash
 FORGEWORTH_CODEX=1 python -m tui.app
 ```
 
-Chat launches `codex exec` with a read-only sandbox in an empty temporary directory. It has a 90-second timeout and no direct interface to the installer. This is **not a hardened security sandbox**: local Codex configuration, authentication, model instructions, and environment access may still apply. Run under an unprivileged account; review your Codex configuration and network/data exposure before enabling. Never use on a privileged installer session until isolation has been independently reviewed. No API key is stored by this app.
+Opt-in sends your question, bounded recent conversation and read-only stage
+metadata to the configured Codex provider. The activity line makes this visible.
+History is held in memory until exit. Logs and telemetry are not automatically
+shared. Requests time out after 90 seconds; Escape terminates their process group.
+Authentication, offline and incompatible-CLI failures leave inspection available.
+No live inference succeeded in this development environment: the session returned
+401 despite `login status` reporting a login. Backend behavior is mock-tested.
 
-Chat responses are asynchronous so the UI remains responsive. Conversation history and live installer telemetry are **not yet** sent to Codex. The offline response is deliberately a placeholder, not a fabricated AI answer.
+`FORGEWORTH_CODEX` defaults off. `XDG_STATE_HOME` defaults to `~/.local/state`;
+inspection checkpoints live under `gentoo-forge/checkpoint.json`. They record
+inspection states, not installation authority. Invalid checkpoints currently
+fail startup; move the file aside to repeat inspection. The legacy terminal menu
+(`python tui/forgeworth.py`) remains available without Textual.
 
-## Next milestones
+## Development and verification
 
-1. Add structured stage events from real installer engine operations and durable progress/checkpoint logs.
-2. Add Textual tests for layout, button behavior, and chat failures.
-3. Separate Codex into a restricted sidecar service with explicit data-sharing permissions and stronger isolation.
-4. Add per-stage disk identity confirmation and VM-tested installation workflows before unlocking any writes.
+```bash
+python -m unittest discover -s tests -v
+bash tests/validate.sh
+```
+
+Tests use fake inventories, subprocess fixtures, temporary checkpoints and Textual
+headless pilots. They never partition a disk or call a live model. CI runs both
+Python and shell checks. See [architecture](ARCHITECTURE.md),
+[security](SAFETY.md) and [installation qualification](INSTALLATION-TARGET.md).
+
+![FORGEWORTH terminal interface](screenshots/forgeworth.svg)

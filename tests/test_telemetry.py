@@ -16,6 +16,7 @@ class TelemetryTests(unittest.TestCase):
             (proc / "uptime").write_text("100.5 10.2\n")
             thermal = root / "thermal"
             (thermal / "thermal_zone0").mkdir(parents=True)
+            (thermal / "thermal_zone0" / "type").write_text("k10temp")
             (thermal / "thermal_zone0" / "temp").write_text("42500\n")
             result = snapshot(proc, thermal)
             self.assertEqual(result.memory_used_percent, 75.0)

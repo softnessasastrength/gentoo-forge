@@ -1,4 +1,4 @@
-name: Validate shell scripts
+name: Validate Forgeworth
 on:
   push:
   pull_request:
@@ -9,5 +9,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install ShellCheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r tui/requirements.txt
+      - run: python -m unittest discover -s tests -v
       - name: Validate
         run: bash tests/validate.sh
