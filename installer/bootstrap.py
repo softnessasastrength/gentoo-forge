@@ -106,6 +106,7 @@ class TargetMounts(AbstractContextManager):
         self.storage = storage
         self.temporary = None
         self.mounts = []
+        self.swap_active = False
 
     def mount(self, argv, target, recursive=False):
         command(argv)
@@ -141,6 +142,18 @@ class TargetMounts(AbstractContextManager):
         except BaseException:
             self.__exit__(*__import__('sys').exc_info())
             raise
+
+    def activate_swap(self):
+        """Opt-in use of only the already authorized installation swap device."""
+        if not self.mounts or self.swap_active:
+            raise ValueError('Swap activation requires an active target mount context')
+        path = self.storage['partitions']['swap']
+        observed = filesystem(path)
+        expected = self.storage['filesystems']['swap']
+        if observed['TYPE'] != 'swap' or observed['UUID'] != expected['UUID']:
+            raise ValueError('Installation swap identity changed')
+        command(['swapon', '--priority', '10', path])
+        self.swap_active = True
 
     def pseudo(self, *, require_dns=True):
         for name in ('proc', 'sys', 'dev', 'run'):
@@ -197,6 +210,12 @@ class TargetMounts(AbstractContextManager):
 
     def __exit__(self, *args):
         failures = []
+        if self.swap_active:
+            try:
+                command(['swapoff', self.storage['partitions']['swap']], timeout=120)
+                self.swap_active = False
+            except (OSError, RuntimeError, subprocess.SubprocessError):
+                failures.append('swap ' + self.storage['partitions']['swap'])
         for target, recursive in reversed(self.mounts):
             try:
                 command(['umount', *(['--recursive'] if recursive else []), str(target)])

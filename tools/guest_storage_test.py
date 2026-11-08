@@ -33,6 +33,7 @@ def minimal_system(storage):
         extract(archive, target.root, expected, size)
         archive.unlink()
         base_configuration(target.root, storage)
+        target.activate_swap()
         target.pseudo()
         print('FORGE_PHASE: verifying chroot and configuring base system', flush=True)
         target.chroot(['/usr/bin/env', 'bash', '-c', 'test -f /etc/gentoo-release && command -v emerge && command -v rc-update'])

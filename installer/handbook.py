@@ -29,7 +29,7 @@ REQUIREMENTS = (
     Requirement('gpt-recovery', 'Disks', 'GPT backup and interrupted allocation recovery', 'installer/storage.py', 'tests/test_storage.py', 'Private hashed backup implemented; interrupted recovery execution still pending', 'partial'),
     Requirement('filesystems', 'Disks', '1 GiB FAT32 EFI, 20 GiB swap, remaining Btrfs', 'installer/storage.py', 'tests/test_storage.py', 'Read actual filesystem types, UUIDs and GPT sector extents', 'vm-verified'),
     Requirement('subvolumes', 'Disks', 'Independent root/home and snapshot subvolumes', 'tools/guest_storage_test.py', '', 'Create/show @, @home, @snapshots, @home_snapshots in Gentoo VM', 'vm-verified'),
-    Requirement('swap-active', 'Disks', 'Controlled installation swap activation and cleanup', '', '', 'Activate only selected swap; verify UUID and deactivate during cleanup', 'pending'),
+    Requirement('swap-active', 'Disks', 'Controlled installation swap activation and cleanup', 'installer/bootstrap.py', 'tests/test_bootstrap.py', 'Activate only selected swap; verify UUID and deactivate during cleanup', 'unit-tested'),
     Requirement('stage3-auth', 'Stage', 'Select and authenticate official OpenRC multilib Stage3', 'installer/media.py', 'tests/test_media.py', 'Trusted primary fingerprint, signed index/checksum, exact archive hash/size', 'integration-verified'),
     Requirement('stage3-extract', 'Stage', 'Validated xattrs/numeric-owner extraction onto target', 'installer/bootstrap.py', 'tests/test_bootstrap.py', 'Extract signed real Stage3 and inspect resulting root', 'implemented'),
     Requirement('compile', 'Stage', 'Hardware-compatible compiler flags and configurable concurrency', '', '', 'Check actual target ISA and emitted make.conf; compile a package', 'pending'),

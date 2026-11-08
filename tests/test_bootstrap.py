@@ -145,3 +145,21 @@ class BootstrapTests(unittest.TestCase):
                 with self.assertRaises(subprocess.TimeoutExpired):
                     context.chroot(['/usr/bin/sleep', '999'], timeout=.01)
                 self.assertEqual(kill.call_count, 2)
+
+    def test_swap_activation_checks_uuid_and_cleans_up(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context = TargetMounts({'partitions': {'swap': '/dev/mock-swap'},
+                                    'filesystems': {'swap': {'UUID': 'EXPECTED'}}})
+            context.mounts = [(Path(directory), False)]
+            with patch('installer.bootstrap.filesystem', return_value={'TYPE': 'swap', 'UUID': 'OTHER'}), patch('installer.bootstrap.command') as command:
+                with self.assertRaisesRegex(ValueError, 'identity changed'):
+                    context.activate_swap()
+                command.assert_not_called()
+            with patch('installer.bootstrap.filesystem', return_value={'TYPE': 'swap', 'UUID': 'EXPECTED'}), patch('installer.bootstrap.command') as command:
+                context.activate_swap()
+                with self.assertRaises(ValueError):
+                    context.activate_swap()
+                context.__exit__(None, None, None)
+                self.assertIn(unittest.mock.call(['swapon', '--priority', '10', '/dev/mock-swap']), command.call_args_list)
+                self.assertIn(unittest.mock.call(['swapoff', '/dev/mock-swap'], timeout=120), command.call_args_list)
+                self.assertFalse(context.swap_active)

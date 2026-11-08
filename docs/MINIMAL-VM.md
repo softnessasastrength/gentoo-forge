@@ -53,6 +53,7 @@ entire NTFS partition must remain byte-identical.
 
 With `--stage3`, it validates/extracts the authenticated archive with numeric
 ownership and xattrs, mounts target/pseudo-filesystems with explicit cleanup,
+activates only the verified installation swap and deactivates it during cleanup,
 configures basic OpenRC settings, generates a normal Btrfs/resume dracut image,
 and installs GRUB into the private ESP without firmware-variable writes. It then
 shuts down and starts a new QEMU process with **no ISO, Stage3 device, direct
