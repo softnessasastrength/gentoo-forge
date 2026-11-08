@@ -34,3 +34,11 @@ mounted target with `bash install-butler.sh --target-root /mnt/gentoo` before
 reboot; the live bundle carries its required Python/Codex runtimes. It runs only
 as an ordinary user, verifies actual instruction discovery, and shares the
 canonical [personality policy](forgeworth/AGENTS.md) with the Textual interface.
+
+## Current storage work
+
+`bash forge-install.sh doctor` checks Gentoo live prerequisites;
+`bash forge-install.sh plan --disk /dev/EXPLICIT_DISK` inspects identity/ancestry
+and proposes allocations only in existing GPT free space. It never resizes or
+clears existing partitions. Physical writes remain qualification-locked. Read
+the [live-CD engineering handoff](docs/LIVE-CD-HANDOFF.md) before continuing work.

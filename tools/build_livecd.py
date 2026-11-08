@@ -52,9 +52,9 @@ def copy_app(destination):
     for name in ('AGENTS.md', 'README.md', 'butler_cli.py', 'butler'):
         shutil.copyfile(ROOT / name, destination / name)
     shutil.copytree(ROOT / 'forgeworth', destination / 'forgeworth', ignore=shutil.ignore_patterns('__pycache__'))
-    for name in ('tui', 'scripts'):
+    for name in ('tui', 'scripts', 'installer'):
         (destination / name).mkdir()
-        pattern = '*.py' if name == 'tui' else '*.sh'
+        pattern = '*.sh' if name == 'scripts' else '*.py'
         for path in sorted((ROOT / name).glob(pattern)):
             if path.is_symlink():
                 raise ValueError('Source symlinks are not permitted')
@@ -114,7 +114,7 @@ def build(output, *, with_codex=True):
         copy_app(bundle / 'app')
         shutil.copyfile(ROOT / 'livecd.sh', bundle / 'livecd.sh')
         (bundle / 'livecd.sh').chmod(0o755)
-        for name in ('butler', 'butler_cli.py', 'install-butler.sh'):
+        for name in ('butler', 'butler_cli.py', 'install-butler.sh', 'forge-install.sh'):
             shutil.copyfile(ROOT / name, bundle / name)
         (bundle / 'butler').chmod(0o755)
         (bundle / 'tools').mkdir()
@@ -123,8 +123,9 @@ def build(output, *, with_codex=True):
         for name in ('LIVE-CD.md', 'BUTLER.md'):
             shutil.copyfile(ROOT / 'docs' / name, bundle / 'docs' / name)
         shutil.copytree(ROOT / 'forgeworth', bundle / 'forgeworth', ignore=shutil.ignore_patterns('__pycache__'))
+        shutil.copytree(ROOT / 'installer', bundle / 'installer', ignore=shutil.ignore_patterns('__pycache__'))
         (bundle / 'tui').mkdir()
-        for name in ('__init__.py', 'personality.py', 'process.py'):
+        for name in ('__init__.py', 'personality.py', 'process.py', 'safety.py'):
             shutil.copyfile(ROOT / 'tui' / name, bundle / 'tui' / name)
         for name in ('python', 'codex') if with_codex else ('python',):
             print('Downloading verified ' + name + ' runtime...', flush=True)
