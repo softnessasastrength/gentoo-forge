@@ -12,6 +12,8 @@ from rich.text import Text
 from textual.widgets import Collapsible
 from tui.backend import CodexBackend, BackendError
 from tui.engine import Engine, STAGES
+from tui.vbox_panel import VirtualBoxPanel
+from tui.virtualbox import offline_answer, clean
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -23,7 +25,7 @@ CSS = """
 Screen { background: #0d1520; color: #dce7ee; }
 Header { background: #12283a; color: #9fe8d4; }
 #dashboard { height: 1fr; }
-#left { width: 55%; padding: 1 2; }
+#left { width: 55%; padding: 1 2; overflow-y: auto; }
 Screen.narrow #dashboard { layout: vertical; overflow-y: auto; }
 Screen.narrow #left { width: 100%; height: 32; }
 Screen.narrow #right { width: 100%; height: 28; border-left: none; }
@@ -34,7 +36,7 @@ Collapsible { height: auto; }
 .panel { border: round #3b6570; padding: 1 2; margin-bottom: 1; }
 .heading { color: #8ce2c5; text-style: bold; }
 #progress { height: auto; }
-#log { height: 1fr; background: #0a111a; }
+#log { height: 1fr; min-height: 6; background: #0a111a; }
 #chat { height: 1fr; background: #101e2a; }
 #prompt { dock: bottom; margin-top: 1; }
 #controls { height: auto; margin: 1 0; }
@@ -50,10 +52,11 @@ class Forgeworth(App):
     SUB_TITLE = "A gentleman's guide to compiling one's own misery"
     CSS = CSS
     BINDINGS = [("f1", "help", "Help"), ("f2", "focus_chat", "Butler"),
-                ("f3", "focus_logs", "Logs"), ("ctrl+q", "quit", "Quit"), ("escape", "cancel_chat", "Cancel AI")]
+                ("f3", "focus_logs", "Logs"), ("f4", "virtualbox", "VM test"), ("ctrl+q", "quit", "Quit"), ("escape", "cancel_chat", "Cancel AI")]
 
-    def __init__(self) -> None:
+    def __init__(self, virtualbox=False) -> None:
         super().__init__()
+        self.vbox_active = virtualbox
         self.busy = False
         self.mode = Mode.BUTLER
         self.intensity = 85
@@ -81,6 +84,8 @@ class Forgeworth(App):
                     yield Button("Demo", id="demo")
                 with Collapsible(title="Installation workflow — write stages locked", collapsed=True):
                     yield Static("\n".join(f"{stage.upper()}  ·  {self.engine.states[stage]}" for stage in STAGES), id="workflow")
+                with Collapsible(title="VirtualBox smoke-test assistant · F4", collapsed=not self.vbox_active, id="vbox-section"):
+                    yield VirtualBoxPanel()
                 yield Static("OPERATIONS LOG", classes="heading")
                 yield RichLog(id="log", markup=False, wrap=True, min_width=1, max_lines=2000)
             with Vertical(id="right"):
@@ -102,6 +107,8 @@ class Forgeworth(App):
         )
         self.set_interval(3.0, self.refresh_telemetry)
         self.run_worker(self.refresh_telemetry(), group="telemetry", exclusive=True)
+        if self.vbox_active:
+            self.call_after_refresh(self.query_one("#vbox-section").scroll_visible, animate=False, top=True)
 
     async def refresh_telemetry(self) -> None:
         try:
@@ -112,9 +119,24 @@ class Forgeworth(App):
         self.query_one('#telemetry', Static).update(format_snapshot(data))
         self.telemetry_context = format_snapshot(data)
 
+    def action_virtualbox(self) -> None:
+        section = self.query_one("#vbox-section", Collapsible)
+        section.collapsed = not section.collapsed
+        self.vbox_active = not section.collapsed
+        if self.vbox_active:
+            section.scroll_visible(animate=False, top=True)
+
+    def on_collapsible_expanded(self, event: Collapsible.Expanded) -> None:
+        if event.collapsible.id == "vbox-section":
+            self.vbox_active = True
+
+    def on_collapsible_collapsed(self, event: Collapsible.Collapsed) -> None:
+        if event.collapsible.id == "vbox-section":
+            self.vbox_active = False
+
     def action_help(self) -> None:
         self.say("F1 help, F2 chat, F3 logs. Preflight and Plan are read-only. "
-                 "Demo is simulated. No disk writes, sir. We do have standards.")
+                 "F4 opens VirtualBox guidance and reports. Demo is simulated. No disk writes, sir. We do have standards.")
 
     def action_focus_chat(self) -> None:
         self.query_one("#prompt", Input).focus()
@@ -133,6 +155,8 @@ class Forgeworth(App):
             self.say(f'{self.mode.value.title()} mode selected, sir.')
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id != "prompt":
+            return
         question = event.value.strip()
         event.input.value = ""
         if not question:
@@ -150,19 +174,43 @@ class Forgeworth(App):
     async def answer(self, question: str) -> None:
         status = self.query_one("#ai-status", Static)
         status.update("AI request · sharing question, recent chat and stage metadata")
+        panel = self.query_one(VirtualBoxPanel)
+        context = self.context
+        if self.vbox_active and panel.report:
+            facts = panel.facts or {}
+            context = Context(stage=self.context.stage, status=self.context.status,
+                              detail=f"VirtualBox {facts.get('virtualization', 'unknown')}; local EFI {facts.get('efi', 'unknown')}; "
+                              f"disk checks {panel.report.data['disk_validation']}; installer writes LOCKED. "
+                              f"Selected checklist {panel.query_one('#vbox-step', Select).value}; "
+                              "No complete installation has been verified.")
+            if any(word in question.lower() for word in ('disk', 'drive', 'erase', 'wipe', 'nuke', 'format', 'data loss', 'destruct', 'partition')):
+                self.say(offline_answer(question, panel.report, serious=True))
+                status.update("Local safety guidance · no question shared")
+                return
         try:
-            self.say(await self.backend.answer(question, self.mode, self.intensity, self.context))
+            self.say(await self.backend.answer(question, self.mode, self.intensity, context))
         except asyncio.CancelledError:
             self.say("Request cancelled.")
             raise
         except (BackendError, OSError, RuntimeError, asyncio.TimeoutError) as exc:
             self.say(str(exc))
+            if self.vbox_active and panel.report:
+                self.say("Offline documented guidance: " + offline_answer(
+                    question, panel.report, serious=self.mode == Mode.EMERGENCY or self.intensity == 0)
+                    + f"\nInstaller now: {self.context.stage} / {self.context.status}.")
         finally:
             status.update("AI idle · Escape cancels a pending reply")
 
     def stage_event(self, event) -> None:
         self.context = Context(stage=event.stage, status=event.status, detail=event.detail)
         self.query_one("#status", Label).update(f"{event.stage}: {event.status} {event.detail}")
+        panel = self.query_one(VirtualBoxPanel)
+        if self.vbox_active and panel.report and event.stage == "preflight" and event.status in ("completed", "failed"):
+            try:
+                panel.report.record("inspect", event.status, "Read-only engine preflight: " + event.detail, source="observed")
+                panel.show_step()
+            except OSError:
+                panel.feedback("Could not persist preflight evidence; export location may be unavailable.")
         self.query_one("#workflow", Static).update("\n".join(
             f"{stage.upper()}  ·  {self.engine.states[stage]}" for stage in STAGES))
         bar = self.query_one("#bar", ProgressBar)
@@ -200,15 +248,32 @@ class Forgeworth(App):
 
     async def readonly_stage(self, kind: str) -> None:
         self.busy = True
+        excerpt = []
+        def log_chunk(line):
+            self.query_one("#log", RichLog).write(Text(line))
+            excerpt.append(clean(line))
+            if len(excerpt) > 50:
+                del excerpt[0]
         try:
-            await self.engine.execute(kind, lambda line: self.query_one("#log", RichLog).write(Text(line)))
+            await self.engine.execute(kind, log_chunk)
         except (OSError, RuntimeError, asyncio.TimeoutError) as exc:
             self.query_one("#status", Label).update(f"Inspection failed: {type(exc).__name__}")
         finally:
             self.busy = False
+            panel = self.query_one(VirtualBoxPanel)
+            if self.vbox_active and panel.report:
+                panel.report.data.setdefault("logs", {})[kind] = clean("".join(excerpt))
+                try:
+                    panel.report.save()
+                except OSError:
+                    panel.feedback("Could not save inspection log excerpt.")
 
     def on_resize(self, event) -> None:
         self.set_class(event.size.width < 100, "narrow")
 
 if __name__ == "__main__":
-    Forgeworth().run()
+    import argparse
+    parser = argparse.ArgumentParser(description="FORGEWORTH read-only inspection and VirtualBox smoke-test guide")
+    parser.add_argument("--virtualbox", action="store_true", help="Open the safe VirtualBox guided workflow")
+    args = parser.parse_args()
+    Forgeworth(virtualbox=args.virtualbox).run()

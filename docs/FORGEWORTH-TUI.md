@@ -63,3 +63,11 @@ Python and shell checks. See [architecture](ARCHITECTURE.md),
 [security](SAFETY.md) and [installation qualification](INSTALLATION-TARGET.md).
 
 ![FORGEWORTH terminal interface](screenshots/forgeworth.svg)
+
+## VirtualBox test mode
+
+Press F4 or launch `python -m tui.app --virtualbox` for the scrollable checklist,
+read-only detection, offline troubleshooting and reports. Set
+`FORGEWORTH_VBOX_REPORT` to a chosen `.json` path for persistent reports across
+reboots. See [VirtualBox setup and reporting](VIRTUALBOX.md). Disk safeguards and
+locked installation stages apply equally to virtual and physical machines.

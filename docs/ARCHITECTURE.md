@@ -47,3 +47,13 @@ Mocked conversation tests pass; successful live inference remains unverified her
 4. Kernel/initramfs/GRUB boot verification, hibernate/resume, independent root/home
    snapshots, recovery-media rollback and interrupted-install recovery.
 5. Real hardware qualification, accessibility review, hardened AI sidecar.
+
+## VirtualBox guided milestone
+
+`virtualbox.py` contains pure detection/resource rules, a fixed read-only probe
+allowlist, shared disk-policy validation, documented offline guidance and a
+versioned JSON/text report model. `vbox_panel.py` owns scrollable Textual controls;
+inspection and chat remain separate workers. Disk questions are routed to serious
+local guidance; Codex has no validation or authorization capability. Reports keep
+observed diagnostics distinct from user attestations and never assert installed
+system success. No hypervisor API or write stage was added. See `VIRTUALBOX.md`.

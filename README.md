@@ -10,3 +10,8 @@ FORGEWORTH now provides asynchronous read-only inspection, optional Codex chat,
 mode/intensity controls and headless UI tests. Start with the
 [TUI guide](docs/FORGEWORTH-TUI.md). Read the [architecture](docs/ARCHITECTURE.md)
 and [target qualification plan](docs/INSTALLATION-TARGET.md) for explicit limits.
+
+For a disposable VirtualBox trial, run `python -m tui.app --virtualbox` or press F4.
+The [VirtualBox guide](docs/VIRTUALBOX.md) covers host resource checks, ISO setup,
+read-only diagnostics, explicit disk validation and JSON/text report export.
+This guided milestone does not claim a completed installation.
