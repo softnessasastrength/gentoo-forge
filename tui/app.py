@@ -15,6 +15,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Button, Footer, Header, Input, Label, ProgressBar, RichLog, Static, Select
 from tui.personality import Context, Mode, system_prompt
+from tui.telemetry import snapshot, format_snapshot
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -57,6 +58,7 @@ class Forgeworth(App):
                 with Vertical(classes="panel"):
                     yield Static("SYSTEM PROFILE", classes="heading")
                     yield Static("Target: not selected  |  OpenRC / Btrfs / Plasma")
+                    yield Static("Telemetry: collecting...", id="telemetry")
                     yield Static("Installation: LOCKED  |  Read-only preview")
                 with Vertical(classes="panel", id="progress"):
                     yield Static("STAGE PROGRESS", classes="heading")
@@ -83,6 +85,13 @@ class Forgeworth(App):
         self.query_one("#log", RichLog).write(
             "[#e5c98d]SAFETY:[/] All installation and disk-writing operations are locked."
         )
+        self.set_interval(3.0, self.refresh_telemetry)
+        self.refresh_telemetry()
+
+    def refresh_telemetry(self) -> None:
+        data = snapshot()
+        self.query_one('#telemetry', Static).update(format_snapshot(data))
+        self.telemetry_context = format_snapshot(data)
 
     def action_help(self) -> None:
         self.say("F1 help, F2 chat, F3 logs. Preflight and Plan are read-only. "
@@ -117,7 +126,10 @@ class Forgeworth(App):
                      "Set FORGEWORTH_CODEX=1 with Codex installed to opt in. "
                      "Until then I remain an exquisitely polite offline placeholder.")
             return
-        prompt = system_prompt(self.mode, self.intensity, self.context) + "\nUser question: " + question
+        prompt = (system_prompt(self.mode, self.intensity, self.context)
+                  + "\nRead-only host telemetry (not necessarily target disk or chroot): "
+                  + getattr(self, "telemetry_context", "unavailable")
+                  + "\nUser question: " + question)
         # Do not run Codex inside the repository or with root privileges.
         # An empty temporary working directory prevents project-file access.
         import tempfile
