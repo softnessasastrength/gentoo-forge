@@ -13,7 +13,8 @@ import subprocess
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Button, Footer, Header, Input, Label, Log, ProgressBar, RichLog, Static
+from textual.widgets import Button, Footer, Header, Input, Label, ProgressBar, RichLog, Static, Select
+from tui.personality import Context, Mode, system_prompt
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -45,6 +46,9 @@ class Forgeworth(App):
     def __init__(self) -> None:
         super().__init__()
         self.busy = False
+        self.mode = Mode.BUTLER
+        self.intensity = 85
+        self.context = Context()
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -66,6 +70,7 @@ class Forgeworth(App):
                 yield RichLog(id="log", markup=True, wrap=True, highlight=True)
             with Vertical(id="right"):
                 yield Static("FORGEWORTH  //  YOUR DIGITAL BUTLER", classes="heading")
+                yield Select([(m.value.title(), m.value) for m in Mode], value=Mode.BUTLER.value, id="mode", allow_blank=False)
                 yield RichLog(id="chat", markup=True, wrap=True, highlight=True)
                 yield Input(placeholder="Ask your butler a question...", id="prompt")
         yield Footer()
@@ -92,6 +97,11 @@ class Forgeworth(App):
     def say(self, message: str) -> None:
         self.query_one("#chat", RichLog).write("[bold #8ce2c5]FORGEWORTH:[/] " + message)
 
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.select.id == 'mode' and isinstance(event.value, str):
+            self.mode = Mode(event.value)
+            self.say(f'{self.mode.value.title()} mode selected, sir.')
+
     def on_input_submitted(self, event: Input.Submitted) -> None:
         question = event.value.strip()
         event.input.value = ""
@@ -107,10 +117,7 @@ class Forgeworth(App):
                      "Set FORGEWORTH_CODEX=1 with Codex installed to opt in. "
                      "Until then I remain an exquisitely polite offline placeholder.")
             return
-        prompt = ("You are Forgeworth, a witty, dry British butler helping a user learn Gentoo. "
-                  "Be accurate, concise, and gently sarcastic. Never suggest bypassing disk "
-                  "confirmation or executing destructive commands. This is an educational "
-                  "chat, not permission to operate on the computer.\nUser: " + question)
+        prompt = system_prompt(self.mode, self.intensity, self.context) + "\nUser question: " + question
         # Do not run Codex inside the repository or with root privileges.
         # An empty temporary working directory prevents project-file access.
         import tempfile
@@ -170,6 +177,7 @@ class Forgeworth(App):
                              else "scripts/10-plan.sh")
             status = self.query_one("#status", Label)
             status.update(f"Running read-only {kind}; duration unknown")
+            self.context = Context(stage=kind, status="running", detail="Read-only inspection")
             self.query_one("#bar", ProgressBar).update(total=None)
             # Do not execute as root or permit arbitrary shell arguments.
             proc = await asyncio.create_subprocess_exec(
@@ -184,6 +192,7 @@ class Forgeworth(App):
                 return
             for line in output.decode(errors="replace").splitlines():
                 self.query_one("#log", RichLog).write(line)
+            self.context = Context(stage=kind, status="completed" if proc.returncode == 0 else "failed", detail=f"Exit code {proc.returncode}")
             status.update(f"{kind}: {'completed' if proc.returncode == 0 else 'needs attention'} "
                           f"(exit {proc.returncode})")
             self.say("The inspection is complete, sir. No partitions were harmed.")
