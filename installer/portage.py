@@ -76,3 +76,24 @@ def configure_compiler(target, settings):
                  'FCFLAGS="${COMMON_FLAGS}"\nFFLAGS="${COMMON_FLAGS}"\n'
                  f'MAKEOPTS="-j{settings.jobs} -l{settings.load}"\n')
     return {'march': settings.march, 'jobs': settings.jobs, 'load': settings.load}
+
+
+def validate_use_flags(target, requests):
+    """Ask target Portage for evaluated IUSE; never parse ebuild source text."""
+    import json
+    for atom, flags in requests.items():
+        if not re.fullmatch(r'[a-z0-9][a-z0-9+_-]*/[A-Za-z0-9][A-Za-z0-9+_.-]*', atom):
+            raise ValueError('Invalid package atom')
+        if any(not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_+-]*', flag) for flag in flags):
+            raise ValueError('Invalid USE flag')
+    probe = '''import json,sys,portage
+p=portage.db[portage.settings['ROOT']]['porttree'].dbapi
+for atom,flags in json.loads(sys.argv[1]).items():
+    matches=p.xmatch('match-visible',atom)
+    if not matches: raise SystemExit('No visible package: '+atom)
+    cpv=portage.best(matches)
+    iuse={f.lstrip('+-') for f in p.aux_get(cpv,['IUSE'])[0].split()}
+    missing=set(flags)-iuse
+    if missing: raise SystemExit('Unavailable USE flags for '+atom+': '+','.join(sorted(missing)))
+'''
+    target.chroot(['/usr/bin/python3', '-c', probe, json.dumps(requests, sort_keys=True)], timeout=120)

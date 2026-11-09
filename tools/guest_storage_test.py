@@ -9,6 +9,8 @@ import time
 from installer.storage import Audit, command, inspect, prepare, read_plan
 from installer.bootstrap import TargetMounts, extract, base_configuration, write_target, create_subvolumes
 from installer.boot import install_boot_stack
+from installer.services import install_base_services
+from installer.graphics import install_amd_graphics
 from tools.install_butler import install as install_butler
 
 
@@ -45,6 +47,12 @@ def minimal_system(storage):
         target.chroot(['/usr/bin/env', 'passwd', '-l', 'branden'])
         boot = install_boot_stack(target, storage, binary_fallback=True, serial_console=True, jobs=2, load=2)
         root_uuid = storage['filesystems']['root']['UUID']
+        if os.environ.get('FORGE_BASE_SERVICES') == '1':
+            print('FORGE_PHASE: installing target system services', flush=True)
+            storage['base_services'] = install_base_services(target, binary_fallback=True, replace_dhcpcd=True)
+        if os.environ.get('FORGE_AMD_GRAPHICS') == '1':
+            print('FORGE_PHASE: installing AMDGPU and Mesa RADV', flush=True)
+            storage['amd_graphics'] = install_amd_graphics(target)
         install_butler(target.root)
         boot_check = '''#!/bin/sh
 uuid=$(findmnt -n -o UUID /)
@@ -57,7 +65,7 @@ butler=false
 if su -s /bin/sh branden -c 'command -v butler && butler --offline' >/var/log/forge-butler-check.log 2>&1 && grep -q 'FORGEWORTH offline help' /var/log/forge-butler-check.log; then butler=true; fi
 ok=false
 if [ "$uuid" = "ROOT_UUID" ] && [ "$fs" = btrfs ] && [ "$home" = /@home ] && [ "$init" = init ] && [ "$efi" = true ] && [ "$iso" = false ] && [ "$butler" = true ] && [ -f /run/openrc/softlevel ]; then ok=true; fi
-printf 'FORGE_BOOT_RESULT:{"passed":%s,"root_uuid":"%s","root_fs":"%s","home_subvolume":"%s","pid1":"%s","uefi":%s,"iso_present":%s,"butler_user_offline":%s}\\n' "$ok" "$uuid" "$fs" "$home" "$init" "$efi" "$iso" "$butler"
+printf 'FORGE_BOOT_RESULT:{"passed":%s,"root_uuid":"%s","root_fs":"%s","home_subvolume":"%s","pid1":"%s","uefi":%s,"iso_present":%s,"butler_user_offline":%s}\\n' "$ok" "$uuid" "$fs" "$home" "$init" "$efi" "$iso" "$butler" >/dev/ttyS0
 (sleep 2; poweroff) &
 exit 0
 '''.replace('ROOT_UUID', root_uuid)
@@ -115,13 +123,16 @@ def main():
     finally:
         command(['umount', '/run/forge-mount'])
     result['subvolumes'] = create_subvolumes(result)
+    if hash_partition('/dev/sda1') != before:
+        raise RuntimeError('Existing NTFS changed during subvolume setup')
+    result.update({'ntfs_entire_partition_sha256_unchanged': True,
+                   'mounted_descendant_rejected': True, 'uefi_live_boot': True,
+                   'qualification': 'storage only', 'installed_system_boot': 'not tested'})
+    print('FORGE_STORAGE_RESULT:' + json.dumps(result), flush=True)
     if os.environ.get('FORGE_STAGE3_SIZE'):
         minimal_system(result)
         if hash_partition('/dev/sda1') != before:
             raise RuntimeError('Existing NTFS changed during bootstrap')
-    result.update({'ntfs_entire_partition_sha256_unchanged': True,
-                   'mounted_descendant_rejected': True, 'uefi_live_boot': True,
-                   'qualification': 'storage only', 'installed_system_boot': 'not tested'})
     print('FORGE_RESULT:' + json.dumps(result), flush=True)
 
 

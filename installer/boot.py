@@ -14,6 +14,8 @@ from .portage import CompilerSettings, configure_compiler, select_profile
 # Executed by the target's own Python/Portage after repository authentication.
 # Metadata comes from Portage (including eclasses), not ebuild text matching.
 IUSE_PROBE = r'''import portage
+features=set(portage.settings['FEATURES'].split())
+assert 'binpkg-request-signature' in features and 'binpkg-ignore-signature' not in features
 p = portage.db[portage.settings['ROOT']]['porttree'].dbapi
 matches = p.xmatch('match-visible', 'sys-kernel/installkernel')
 if not matches:
@@ -27,14 +29,16 @@ print('FORGE_METADATA_VERIFIED:' + cpv)
 '''
 
 
-def install_boot_stack(target, storage, *, binary_fallback=False, serial_console=False, jobs=6, load=6):
-    """Install distribution kernel, dracut and GRUB; source-first by default.
+def install_boot_stack(target, storage, *, binary_fallback=True, serial_console=False, jobs=6, load=6, kernel_binary=True):
+    """Install the prebuilt distribution kernel, dracut and GRUB.
 
+    Prefer compatible signed official binaries, with source fallback.
+    kernel_binary=False selects source gentoo-kernel when explicitly requested.
     binary_fallback explicitly allows signed official binary packages for this
     invocation's dependency closure. It does not enable global getbinpkg.
     Returns only after actual target files and command execution are verified.
     """
-    if type(binary_fallback) is not bool or type(serial_console) is not bool:
+    if type(binary_fallback) is not bool or type(serial_console) is not bool or type(kernel_binary) is not bool:
         raise ValueError('Boot options must be explicit booleans')
     if type(jobs) is not int or type(load) is not int or not 1 <= jobs <= 256 or not 1 <= load <= 256:
         raise ValueError('Compilation limits must be integers between 1 and 256')
@@ -56,7 +60,7 @@ def install_boot_stack(target, storage, *, binary_fallback=False, serial_console
         write_target(target.root, 'etc/portage/make.conf', original + '\n' + include + '\n')
     write_target(target.root, 'etc/portage/forge-boot.conf',
                  f'GRUB_PLATFORMS="efi-64"\nMAKEOPTS="-j{jobs} -l{load}"\n'
-                 'FEATURES="${FEATURES} binpkg-request-signature"\n')
+                 'FEATURES="${FEATURES} binpkg-request-signature -binpkg-ignore-signature"\n')
     if binary_fallback:
         write_target(target.root, 'etc/portage/binrepos.conf/forge.conf',
                      '[gentoo]\npriority = 10\nsync-uri = https://distfiles.gentoo.org/releases/amd64/binpackages/23.0/x86-64/\n')
@@ -70,9 +74,7 @@ def install_boot_stack(target, storage, *, binary_fallback=False, serial_console
     compiler = configure_compiler(target, CompilerSettings.for_cpu(Path('/proc/cpuinfo').read_text(), jobs, load))
     write_target(target.root, 'var/lib/gentoo-forge/verify-kernel-use.py', IUSE_PROBE)
     target.chroot(['/usr/bin/python3', '/var/lib/gentoo-forge/verify-kernel-use.py'], timeout=120)
-    # Explicit binary exception for the VM boot-stack dependency closure.
-    # All binaries require signatures; production remains source-first.
-    packages = ['sys-kernel/installkernel', 'sys-kernel/gentoo-kernel-bin' if binary_fallback else 'sys-kernel/gentoo-kernel',
+    packages = ['sys-kernel/installkernel', 'sys-kernel/gentoo-kernel-bin' if kernel_binary else 'sys-kernel/gentoo-kernel',
                 'sys-boot/grub', 'sys-fs/btrfs-progs', 'sys-fs/dosfstools']
     options = ['/usr/bin/emerge', '--getbinpkg=y' if binary_fallback else '--getbinpkg=n',
                '--usepkg=y' if binary_fallback else '--usepkg=n',

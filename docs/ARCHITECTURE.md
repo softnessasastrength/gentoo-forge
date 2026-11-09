@@ -47,7 +47,10 @@ released. The current public CLI does not perform a full installation.
   repository metadata, in-target multilib verification, and compiler settings.
   The recognized Ryzen 5 4500 uses `znver2`; unknown CPUs use generic `x86-64`.
   Compilation defaults to `-j6 -l6` with validated configurable limits.
-- `installer/boot.py`: source-first distribution kernel, dracut and GRUB stage;
+- `installer/boot.py`: prebuilt Gentoo distribution kernel, dracut and GRUB stage;
+  compatible signed official binaries are preferred, with source fallback, per
+  the current user preference. Source-only dependencies and a source distribution
+  kernel remain explicit options.
   installkernel USE flags are checked through the target's Portage metadata before
   the solver's pretend plan. Signed official binary packages require an explicit
   per-invocation exception. GRUB syntax/root UUID and actual initramfs Btrfs/resume

@@ -27,27 +27,27 @@ No hardware verification or complete installed-system boot is currently claimed.
 | repos | Base | Authenticated repository bootstrap and synchronization | Pending | Pending | Run verified webrsync/sync and inspect repository signature settings | pending |
 | profile | Base | Select actual available stable Plasma/OpenRC multilib profile | installer/portage.py | tests/test_portage.py | Resolve exact minimal/Plasma profile from profiles.desc; verify OpenRC/multilib inside target | unit-tested |
 | use | Base | Per-package USE/IUSE, CPU_FLAGS_X86, graphics and multilib ABI validation | Pending | Pending | Portage metadata validation plus readable emerge pretend plan | pending |
-| licenses | Base | Explicit package licenses and source-first binary exceptions | Pending | Pending | No global permissive license or binary preference; inspect emerge plan | pending |
+| licenses | Base | Explicit licenses and configurable signed-binary/source policy | installer/boot.py; installer/graphics.py | tests/test_boot.py; tests/test_graphics.py | Current preference: compatible signed binaries with source fallback; no global license wildcard | partial |
 | news-world | Base | News review, world update and safe maintenance | Pending | Pending | Report unread news; run selected world update and verify dependency plan | pending |
 | locale | Base | America/New_York and en_US.UTF-8 generation/selection | installer/bootstrap.py | tests/test_bootstrap.py | Check target localtime, locale -a and configured LANG | implemented |
-| firmware | Kernel | AMDGPU firmware and AMD microcode | Pending | Pending | Install selected firmware and inspect initramfs contents | pending |
+| firmware | Kernel | AMDGPU firmware and AMD microcode | installer/graphics.py | tests/test_graphics.py | Verify firmware/module installation and initramfs; actual hardware loading still pending | unit-tested |
 | dist-kernel | Kernel | Gentoo distribution kernel via installkernel | installer/boot.py | tests/test_boot.py | Install distribution-kernel package with validated grub/dracut flags | unit-tested |
 | initramfs | Kernel | Dracut Btrfs and resume support | installer/boot.py | tests/test_boot.py | Generate image through target installkernel and independently boot it | implemented |
 | hibernate | Kernel | Verified hibernate/resume using selected swap UUID | Pending | Pending | Actual guest/hardware hibernate and resume; VM saved state is insufficient | pending |
 | fstab | System | UUID-based root/home/snapshots/ESP/swap mounts | installer/bootstrap.py | tests/test_bootstrap.py | Read mounts after installed-system boot and compare UUIDs/subvolumes | implemented |
 | hostname | System | Hostname forge and local hosts | installer/bootstrap.py | tests/test_bootstrap.py | Check hostname after first boot | implemented |
-| networkmanager | System | NetworkManager and OpenRC service configuration | Pending | Pending | Installed boot gets link, route, DNS and HTTPS | pending |
+| networkmanager | System | NetworkManager and OpenRC service configuration | installer/services.py | tests/test_services.py | Installed boot gets link, route, DNS and HTTPS; runtime verification pending | unit-tested |
 | accounts | System | User branden, safe authentication, sudo and locked root policy | tools/guest_storage_test.py | Pending | Fixture creates locked users only; real authenticated login/sudo pending | partial |
-| logger | Tools | System logger and OpenRC registration | Pending | Pending | Installed logger accepts and persists a test entry | pending |
-| cron | Tools | Cron daemon and OpenRC scheduling | Pending | Pending | Installed cron executes a harmless test task | pending |
-| clock | Tools | Installed time synchronization | Pending | Pending | Chrony service and synchronization report after boot | pending |
+| logger | Tools | System logger and OpenRC registration | installer/services.py | tests/test_services.py | Installed logger accepts and persists a test entry; runtime verification pending | unit-tested |
+| cron | Tools | Cron daemon and OpenRC scheduling | installer/services.py | tests/test_services.py | Installed cron executes a harmless test task; runtime verification pending | unit-tested |
+| clock | Tools | Installed time synchronization | installer/services.py | tests/test_services.py | Chrony service and synchronization report after boot; runtime verification pending | unit-tested |
 | fs-tools | Tools | Installed Btrfs/FAT filesystem utilities | Pending | Pending | Verify tools exist in target, not only on live media | pending |
 | ssh | Tools | Optional SSH and shell completion | Pending | Pending | Explicit opt-in only, no root password login by default | manual-only |
 | grub | Bootloader | GRUB UEFI installation and generated boot configuration | installer/boot.py | tests/test_boot.py | Inspect target-generated GRUB config and boot with ISO detached | implemented |
 | reboot | Finalizing | Independent installed-system first boot | tools/gentoo_vm.py | Pending | OVMF boots target alone; actual root UUID/OpenRC/home/EFI evidence | implemented |
 | cleanup | Finalizing | Unmounts, stage archive cleanup and recovery checkpoints | installer/bootstrap.py | tests/test_bootstrap.py | Interrupt and repeat supported stages without reformatting | partial |
 | plasma | Desktop extension | Plasma, SDDM, Wayland and XWayland | Pending | Pending | Actual SDDM user login and desktop/session verification | pending |
-| graphics-audio | Desktop extension | AMDGPU/RADV and PipeWire | Pending | Pending | Observe real renderer/audio devices and services on supported hardware | pending |
+| graphics-audio | Desktop extension | AMDGPU/RADV and PipeWire | installer/graphics.py | tests/test_graphics.py | AMDGPU package stage added; PipeWire and actual renderer/audio verification still pending | partial |
 | gaming | Gaming extension | Optional Steam/Proton/Wine/GameMode with 32-bit ABI | Pending | Pending | Resolve dependencies/licenses; launch and verify representative workloads | pending |
 | snapper | Snapshot extension | Root/home Snapper configurations and requested retention | Pending | Pending | Create independent snapshots and verify OpenRC cleanup schedules | pending |
 | rollback | Snapshot extension | Bootable writable root rollback and recovery procedure | Pending | Pending | Restore/boot older root while independently preserving home | pending |

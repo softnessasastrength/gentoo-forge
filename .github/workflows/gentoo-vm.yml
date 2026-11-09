@@ -23,7 +23,12 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install isolated test dependencies
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf gpgv
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf gpgv acl
+      - name: Permit only the CI user to access an existing KVM device
+        run: |
+          if [[ -c /dev/kvm && ( ! -r /dev/kvm || ! -w /dev/kvm ) ]]; then
+            sudo setfacl -m "u:$(id -un):rw" /dev/kvm
+          fi
       - name: Authenticate Gentoo live media
         run: python -m tools.fetch_gentoo_fixture --output "$RUNNER_TEMP/gentoo-iso"
       - name: Authenticate OpenRC multilib Stage3

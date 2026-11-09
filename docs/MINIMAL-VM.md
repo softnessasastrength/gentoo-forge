@@ -29,7 +29,9 @@ data. Use explicit `--accel tcg` when KVM is unavailable. It is substantially
 slower. The GitHub workflow `Gentoo live-media qualification` runs this job on
 an external runner with 4 GiB guest RAM and retains serial/QEMU logs and structured results, including
 logs on failure. CI uses `--accel auto`: it queries the accessible KVM API and
-uses KVM only when available, otherwise TCG. It never changes `/dev/kvm` permissions.
+uses KVM only when available, otherwise TCG. The unprivileged driver never changes device permissions. CI provisioning grants
+only its own named runner user an ACL on an existing `/dev/kvm` device when
+needed; it does not make the device world-writable or load host modules.
 The selected accelerator and memory are recorded in the result. Guest stage
 messages stream to the CI log; they are activity reports, not completion percentages.
 No VM is part of normal unit-test discovery.
@@ -70,8 +72,9 @@ The host verifies those observations before recording a successful reboot.
 The minimal fixture installs `gentoo-kernel-bin`, installkernel, dracut, GRUB,
 Btrfs and FAT utilities inside the target after `emerge-webrsync`. The boot-stack
 dependency closure is an explicit VM binary exception; signatures are mandatory
-and USE mismatches may fall back to source. Production source-first configuration
-is still pending. No live-media kernel or host dracut is used for installed boot.
+and USE mismatches may fall back to source. The prebuilt distribution kernel is also the current installer-stage default,
+per the requested temporary kernel choice. The current preference is compatible signed binaries with source fallback.
+Source-only dependency compilation remains an explicit option. No live-media kernel or host dracut is used for installed boot.
 
 This does not yet prove installed network connectivity, Plasma, audio/graphics,
 gaming, hibernation or rollback. Accounts are locked; no test password or automatic
@@ -86,3 +89,19 @@ Remote run 42506097798 completed extraction but lacked offline DNS; run
 The updated networked target-package path addresses that architectural problem
 but requires a new remote test. There is no successful installed boot until a
 retained current CI/PC result proves it. Physical installation remains gated.
+
+## Extended system checks
+
+After the minimal path passes, `--base-services` additionally installs sysklogd,
+Cronie, Chrony, sudo and NetworkManager and registers their target OpenRC services.
+`--amd-graphics` installs AMDGPU/Mesa/RADV and redistributable firmware, verifies
+kernel module availability, and regenerates initramfs. Neither flag establishes
+actual network service operation, AMD rendering, audio, desktop login or hibernation.
+They require Stage3/network access and can exceed the minimal test's resource limits.
+
+`STORAGE.json` records completed storage-only checks even if a later bootstrap or
+boot stage fails. It must never be interpreted as installed-system boot evidence.
+Run 42511142357 installed the distribution kernel and reached the installed OpenRC
+runlevel, but the local verification output was captured by OpenRC instead of the
+serial console. Its job failed, so no successful boot qualification was recorded.
+The fixture now writes the marker directly to `/dev/ttyS0`.

@@ -38,17 +38,17 @@ class FakeTarget:
 
 
 class BootTests(unittest.TestCase):
-    def test_source_default_and_human_boot_menu(self):
+    def test_distribution_kernel_default_prefers_signed_binaries_and_human_boot_menu(self):
         with tempfile.TemporaryDirectory() as directory:
             target = FakeTarget(Path(directory))
             result = install_boot_stack(target, STORAGE)
             emerge = [a for a in target.calls if a[0] == '/usr/bin/emerge']
             self.assertEqual(len(emerge), 2)
             self.assertIn('--pretend', emerge[0])
-            self.assertIn('--getbinpkg=n', emerge[1])
-            self.assertIn('--usepkg=n', emerge[1])
-            self.assertIn('sys-kernel/gentoo-kernel', emerge[1])
-            self.assertFalse(result['binary_fallback'])
+            self.assertIn('--getbinpkg=y', emerge[1])
+            self.assertIn('--usepkg=y', emerge[1])
+            self.assertIn('sys-kernel/gentoo-kernel-bin', emerge[1])
+            self.assertTrue(result['binary_fallback'])
             grub = (target.root / 'etc/default/grub').read_text()
             self.assertIn('GRUB_TIMEOUT=5', grub)
             self.assertNotIn('ttyS0', grub)
@@ -96,3 +96,12 @@ class BootTests(unittest.TestCase):
                         return result
                 with self.assertRaises(RuntimeError):
                     install_boot_stack(BrokenTarget(Path(directory)), STORAGE)
+
+    def test_source_distribution_kernel_remains_an_explicit_option(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = FakeTarget(Path(directory))
+            result = install_boot_stack(target, STORAGE, kernel_binary=False, binary_fallback=False)
+            self.assertEqual(result['kernel_package'], 'sys-kernel/gentoo-kernel')
+            call = [a for a in target.calls if a[0] == '/usr/bin/emerge'][-1]
+            self.assertIn('--usepkg=n', call)
+            self.assertIn('sys-kernel/gentoo-kernel', call)

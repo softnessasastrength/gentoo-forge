@@ -139,7 +139,7 @@ class BootstrapTests(unittest.TestCase):
             process = Mock(pid=987654)
             process.wait.side_effect = [subprocess.TimeoutExpired('chroot', .01), 0, 0]
             with patch('installer.bootstrap.subprocess.Popen', return_value=process), patch('installer.bootstrap.os.killpg') as kill:
-                with self.assertRaises(subprocess.TimeoutExpired):
+                with self.assertRaisesRegex(TimeoutError, 'timed out'):
                     context.chroot(['/usr/bin/sleep', '999'], timeout=.01)
                 self.assertEqual(kill.call_count, 2)
 
@@ -228,3 +228,15 @@ class BootstrapTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'identity changed'):
                 create_subvolumes(storage)
             command.assert_not_called()
+
+    def test_partial_storage_evidence_never_claims_boot_success(self):
+        import json
+        from tools.gentoo_vm import save_storage_evidence
+        with tempfile.TemporaryDirectory() as directory:
+            record = {'qualification': 'storage only', 'installed_system_boot': 'not tested'}
+            data = b'FORGE# FORGE_STORAGE_RESULT:' + json.dumps(record).encode() + b'\r\nfailed later\n'
+            save_storage_evidence(data, directory)
+            self.assertEqual(json.loads((Path(directory) / 'STORAGE.json').read_text()), record)
+            record['installed_system_boot'] = 'passed'
+            with self.assertRaises(ValueError):
+                save_storage_evidence(b'FORGE_STORAGE_RESULT:' + json.dumps(record).encode(), directory)

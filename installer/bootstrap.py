@@ -219,8 +219,12 @@ class TargetMounts(AbstractContextManager):
                                        stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
                                        start_new_session=True,
                                        env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'})
+            expired = False
             try:
                 returncode = process.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                expired = True
+                returncode = None
             finally:
                 # Cover timeout, cancellation and children left after leader exit.
                 try:
@@ -241,6 +245,8 @@ class TargetMounts(AbstractContextManager):
             tail = output.read().decode('utf-8', errors='replace')
             # Untrusted compiler/package text must not emit terminal controls.
             tail = ''.join(c if c in '\n\t' or c.isprintable() else '?' for c in tail)
+            if expired:
+                raise TimeoutError(f'Target {Path(argv[0]).name} timed out after {timeout} seconds:\n{tail}')
             if returncode:
                 raise RuntimeError(f'Target {Path(argv[0]).name} failed with exit {returncode}:\n{tail}')
             return tail

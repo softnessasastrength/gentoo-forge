@@ -102,9 +102,21 @@ class Serial:
         self.connection.sendall(command.encode() + b'\n')
 
 
+def save_storage_evidence(data, directory):
+    matches = re.findall(rb'(?:^|[\r\n])(?:FORGE# )?FORGE_STORAGE_RESULT:(\{[^\r\n]+\})', data)
+    if not matches:
+        return
+    if len(matches) != 1:
+        raise ValueError('Ambiguous storage evidence')
+    record = json.loads(matches[0])
+    if record.get('qualification') != 'storage only' or record.get('installed_system_boot') != 'not tested':
+        raise ValueError('Storage evidence must not claim installed-system boot')
+    (Path(directory) / 'STORAGE.json').write_text(json.dumps(record, indent=2) + '\n')
+
+
 def payload():
     buffer = io.BytesIO()
-    files = ['installer/__init__.py', 'installer/storage.py', 'installer/partition_plan.py', 'installer/bootstrap.py', 'installer/boot.py', 'installer/portage.py',
+    files = ['installer/__init__.py', 'installer/storage.py', 'installer/partition_plan.py', 'installer/bootstrap.py', 'installer/boot.py', 'installer/portage.py', 'installer/services.py', 'installer/graphics.py',
              'tui/__init__.py', 'tui/safety.py', 'tui/personality.py', 'tui/process.py',
              'tools/guest_storage_test.py', 'tools/install_butler.py', 'butler', 'butler_cli.py',
              'docs/BUTLER.md', 'forgeworth/AGENTS.md']
@@ -114,9 +126,11 @@ def payload():
     return base64.b64encode(buffer.getvalue()).decode()
 
 
-def qualify(iso, report_directory, accelerator='kvm', stage3=None, memory_mib=2048, network=False):
+def qualify(iso, report_directory, accelerator='kvm', stage3=None, memory_mib=2048, network=False, base_services=False, amd_graphics=False):
     if os.geteuid() == 0:
         raise PermissionError('Run the QEMU driver unprivileged')
+    if (base_services or amd_graphics) and not stage3:
+        raise ValueError('Extended qualification requires authenticated Stage3')
     if stage3 and not network:
         raise ValueError('Stage3 boot qualification requires explicit --network for target packages')
     accelerator = resolve_accelerator(accelerator)
@@ -186,9 +200,17 @@ def qualify(iso, report_directory, accelerator='kvm', stage3=None, memory_mib=20
                     if stage3:
                         serial.send('export FORGE_STAGE3_SIZE=' + str(verification['size']))
                         serial.send('export FORGE_STAGE3_SHA256=' + verification['sha256'])
+                    if base_services:
+                        serial.send('export FORGE_BASE_SERVICES=1')
+                    if amd_graphics:
+                        serial.send('export FORGE_AMD_GRAPHICS=1')
                     serial.send('python3 -m tools.guest_storage_test; echo FORGE_TEST_EXIT:$?')
                     print('Running actual allocation/format/preservation checks inside Gentoo...', flush=True)
-                    output = serial.wait(rb'FORGE_TEST_EXIT:[0-9]+', 3000)
+                    output = b''
+                    try:
+                        output = serial.wait(rb'FORGE_TEST_EXIT:[0-9]+', 3000)
+                    finally:
+                        save_storage_evidence(output or bytes(serial.buffer), report_directory)
                     status = int(re.search(rb'FORGE_TEST_EXIT:([0-9]+)', output)[1])
                     match = re.search(rb'FORGE_RESULT:(\{[^\r\n]+\})', output)
                     if status or not match:
@@ -246,5 +268,7 @@ if __name__ == '__main__':
     parser.add_argument('--stage3', type=Path)
     parser.add_argument('--memory-mib', type=int, default=2048)
     parser.add_argument('--network', action='store_true', help='Allow outbound QEMU user networking for authenticated target packages')
+    parser.add_argument('--base-services', action='store_true', help='Also install and register selected Handbook system services')
+    parser.add_argument('--amd-graphics', action='store_true', help='Also install AMDGPU firmware/Mesa, without claiming hardware rendering verification')
     args = parser.parse_args()
-    print(json.dumps(qualify(args.iso, args.report, args.accel, args.stage3, args.memory_mib, args.network), indent=2))
+    print(json.dumps(qualify(args.iso, args.report, args.accel, args.stage3, args.memory_mib, args.network, args.base_services, args.amd_graphics), indent=2))

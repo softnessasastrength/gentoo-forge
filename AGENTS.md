@@ -41,3 +41,11 @@ Keep portable bundle inputs on an explicit allowlist: never archive the entire
 home, checkout, `.git`, `.venv`, `.codex`, auth files, reports or local disk config.
 Pin downloaded runtimes and verify their hashes. Do not write or flash USB/block
 devices on the development host. State clearly what has and has not been tested.
+
+## Current installation preferences
+
+Use `sys-kernel/gentoo-kernel-bin` for now. Select AMDGPU with Mesa RadeonSI/RADV
+for the Radeon RX 6600 XT. Prefer compatible signed official binary packages when
+available, falling back to source; retain an explicit source-only option. These
+user-selected defaults supersede the earlier source-first preference. They do not
+change disk authorization, root/AI separation, or qualification requirements.
