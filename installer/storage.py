@@ -14,6 +14,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 
 from tui.safety import validate_target
@@ -192,13 +193,22 @@ def read_plan(target):
 class Audit:
     def __init__(self, path):
         self.path = Path(path)
+        if self.path.absolute().parent.resolve() != self.path.absolute().parent:
+            raise ValueError('Audit directory ancestry must be canonical and not use symlinks')
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         if self.path.parent.is_symlink():
             raise ValueError('Audit directory must not be a symlink')
+        parent = self.path.parent.stat()
+        if parent.st_uid != os.geteuid() or parent.st_mode & 0o022:
+            raise ValueError('Audit directory must be owned and not writable by other accounts')
 
     def write(self, action, **fields):
         fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
         with os.fdopen(fd, 'a') as stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_nlink != 1:
+                raise ValueError('Audit file is not a private owned regular file')
+            os.fchmod(stream.fileno(), 0o600)
             fcntl.flock(stream, fcntl.LOCK_EX)
             stream.write(json.dumps({'time': time.time(), 'action': action, **fields}) + '\n')
             stream.flush()
@@ -253,6 +263,46 @@ def filesystem(path):
     return fields
 
 
+def backup_gpt(target, disk_fd, audit):
+    verification = command(['sgdisk', '--verify', target.path])
+    if 'No problems found.' not in verification or re.search(r'(?im)^\s*(warning|caution|error)', verification):
+        raise ValueError('GPT consistency check did not pass; refusing to mutate the table')
+    fd, name = tempfile.mkstemp(prefix='gpt-before-', suffix='.bin', dir=audit.path.parent)
+    os.close(fd)
+    result = subprocess.run(['sgdisk', '--backup=' + name, f'/proc/self/fd/{disk_fd}'],
+                            pass_fds=(disk_fd,), stdin=subprocess.DEVNULL, capture_output=True,
+                            timeout=60, env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'})
+    if result.returncode or Path(name).stat().st_size < 4096:
+        raise RuntimeError('GPT backup failed; no partition changes were attempted')
+    with open(name, 'rb') as stream:
+        backup_hash = hashlib.file_digest(stream, 'sha256').hexdigest()
+        os.fsync(stream.fileno())
+    record = {'path': name, 'sha256': backup_hash, 'bytes': Path(name).stat().st_size}
+    audit.write('gpt-backup-verified', **record)
+    return record
+
+
+def validate_allocated_table(proposal, table, partitions):
+    if (table.get('label') != 'gpt' or table.get('id') != proposal['table_id']
+            or table.get('device') != proposal['device'] or table.get('unit') != 'sectors'
+            or table.get('sectorsize') != proposal['sector_size']):
+        raise ValueError('GPT disk identity or geometry changed')
+    entries = table.get('partitions')
+    if not isinstance(entries, list) or len(entries) != len(proposal['existing']) + 3:
+        raise ValueError('Unexpected partition count after allocation')
+    for original in proposal['existing']:
+        if original not in entries:
+            raise ValueError('Existing partition metadata changed; stop and inspect GPT recovery evidence')
+    for part in proposal['new']:
+        matches = [p for p in entries if p.get('node') == partitions[part['number']]]
+        if len(matches) != 1:
+            raise ValueError('New partition identity is ambiguous')
+        actual = matches[0]
+        if (actual['start'] != part['start'] or actual['size'] != part['end'] - part['start'] + 1
+                or actual['type'].lower() != GUIDS[part['purpose']]):
+            raise ValueError('New partition extent or type verification failed')
+
+
 def prepare(target, proposal, *, nuke_it, confirmation, interactive, audit):
     """Private executor for isolated qualification. CLI release lock is separate.
 
@@ -278,6 +328,7 @@ def prepare(target, proposal, *, nuke_it, confirmation, interactive, audit):
         # formatting happens only after parent identity is freshly rechecked.
         disk_fd = open_target(target)
         try:
+            backup = backup_gpt(target, disk_fd, audit)
             for argv in free_space_commands(proposal):
                 if inspect(target.path) != target or read_plan(target) != proposal:
                     raise ValueError('Disk identity changed before partition operation')
@@ -294,26 +345,10 @@ def prepare(target, proposal, *, nuke_it, confirmation, interactive, audit):
         finally:
             os.close(disk_fd)
         table_after = json.loads(command(['sfdisk', '--json', target.path]))['partitiontable']
-        old_by_node = {p['node']: p for p in proposal['existing']}
-        for original in proposal['existing']:
-            if original not in table_after['partitions']:
-                raise ValueError('Existing partition metadata changed; stop and inspect GPT recovery evidence')
-        if table_after['id'] != proposal['table_id']:
-            raise ValueError('GPT disk identity changed')
-        new_entries = [p for p in table_after['partitions'] if p['node'] not in old_by_node]
         expected_numbers = [int(re.search(r'(\d+)$', p['node'])[1]) for p in proposal['existing']]
         expected_numbers += [p['number'] for p in proposal['new']]
-        if len(new_entries) != 3:
-            raise ValueError('Unexpected new partition count')
         partitions = partition_devices(target, expected_numbers)
-        for part in proposal['new']:
-            entries = [p for p in new_entries if p['node'] == partitions[part['number']]]
-            if len(entries) != 1:
-                raise ValueError('New partition identity is ambiguous')
-            entry = entries[0]
-            if (entry['start'] != part['start'] or entry['size'] != part['end'] - part['start'] + 1
-                    or entry['type'].lower() != GUIDS[part['purpose']]):
-                raise ValueError('New partition extent or type verification failed')
+        validate_allocated_table(proposal, table_after, partitions)
         prefixes = {'efi': ['mkfs.fat', '-F', '32', '-n', 'FORGE_EFI'],
                     'swap': ['mkswap', '--label', 'FORGE_SWAP'],
                     'root': ['mkfs.btrfs', '-f', '-L', 'FORGE_ROOT']}
@@ -327,6 +362,8 @@ def prepare(target, proposal, *, nuke_it, confirmation, interactive, audit):
             # before acquiring its exclusive file description.
             if partition_devices(target, expected_numbers) != partitions:
                 raise ValueError('Partition identity changed before formatting')
+            if json.loads(command(['sfdisk', '--json', target.path]))['partitiontable'] != table_after:
+                raise ValueError('Partition table changed before formatting')
             part = partitions[number]
             # Pin the block object. Formatting programs acquire their own
             # exclusive opens; retaining a competing exclusive claim would
@@ -336,6 +373,11 @@ def prepare(target, proposal, *, nuke_it, confirmation, interactive, audit):
                 info = os.fstat(part_fd)
                 if not stat.S_ISBLK(info.st_mode) or device_number(part) != f'{os.major(info.st_rdev)}:{os.minor(info.st_rdev)}':
                     raise ValueError('Opened partition identity changed')
+                opened_size = bytearray(8)
+                fcntl.ioctl(part_fd, 0x80081272, opened_size)
+                expected_size = (part_plan['end'] - part_plan['start'] + 1) * proposal['sector_size']
+                if int.from_bytes(opened_size, sys.byteorder) != expected_size:
+                    raise ValueError('Opened partition size does not match the authorized extent')
                 audit.write('command-start', argv=prefix + [part])
                 result = subprocess.run(prefix + [f'/proc/self/fd/{part_fd}'], pass_fds=(part_fd,),
                                         stdin=subprocess.DEVNULL, capture_output=True, timeout=120,
@@ -349,8 +391,10 @@ def prepare(target, proposal, *, nuke_it, confirmation, interactive, audit):
         filesystems = {purpose: filesystem(path) for purpose, path in created.items()}
         if [filesystems[p].get('TYPE') for p in ('efi', 'swap', 'root')] != ['vfat', 'swap', 'btrfs']:
             raise ValueError('Filesystem type verification failed')
+        if json.loads(command(['sfdisk', '--json', target.path]))['partitiontable'] != table_after:
+            raise ValueError('Partition table changed during formatting')
         audit.write('storage-filesystems-verified', target=asdict(target), partitions=created, filesystems=filesystems)
-        return {'target': asdict(target), 'partitions': created, 'filesystems': filesystems,
+        return {'target': asdict(target), 'partitions': created, 'filesystems': filesystems, 'gpt_backup': backup,
                 'stage': 'storage-filesystems-verified', 'installation': 'not started',
                 'subvolumes': 'not created', 'hibernation': 'unverified', 'rollback': 'unverified'}
     except BaseException as exc:
@@ -382,9 +426,20 @@ def main():
                           'proposed_commands': free_space_commands(proposal)}, indent=2))
         if args.action == 'plan':
             return 0
-        # Preservation changes the authorization scope: never route a free-space
-        # plan into the older whole-disk fixture executor.
-        raise PermissionError('Physical allocation remains locked pending preservation tests on the Gentoo live CD; NTFS will not be erased')
+        if not PHYSICAL_WRITES_QUALIFIED:
+            raise PermissionError('Physical allocation remains locked pending preservation tests on the Gentoo live CD; NTFS will not be erased')
+        if os.geteuid() != 0 or not args.nuke_it or not sys.stdin.isatty() or not sys.stdout.isatty():
+            raise PermissionError('Use a separate root terminal with --nuke-it and exact interactive confirmation')
+        start, end = proposal['selected_extent']
+        expected = f'ALLOCATE {target.path} {target.serial} {start}-{end} {proposal["fingerprint"]}'
+        print('DESTRUCTIVE STORAGE PREPARATION: new partitions in the displayed free extent will be formatted.')
+        print(f'Disk: {target.path}\nModel: {target.model}\nSerial: {target.serial}\nBytes: {target.size}')
+        print('Existing partitions are preserved. This does not install a bootable system.\nType exactly:\n' + expected)
+        confirmation = input('Confirmation: ')
+        result = prepare(target, proposal, nuke_it=args.nuke_it, confirmation=confirmation,
+                         interactive=True, audit=Audit('/var/log/gentoo-forge/storage.jsonl'))
+        print(json.dumps(result, indent=2))
+        return 0
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
         print(str(exc), file=sys.stderr)
         return 1

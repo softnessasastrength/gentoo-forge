@@ -10,6 +10,7 @@ import os
 from pathlib import Path, PurePosixPath
 import posixpath
 import shutil
+import signal
 import stat
 import subprocess
 import tarfile
@@ -100,11 +101,47 @@ def extract(path, root, expected_sha256, expected_size):
             raise RuntimeError('Stage3 extraction verification failed: ' + name)
 
 
+SUBVOLUMES = ('@', '@home', '@snapshots', '@home_snapshots')
+
+
+def create_subvolumes(storage):
+    """Create/verify independent top-level subvolumes without replacing anything."""
+    if os.geteuid() != 0:
+        raise PermissionError('Subvolume setup requires separate root execution')
+    if inspect(storage['target']['path']) != Target(**storage['target']):
+        raise ValueError('Disk identity changed before subvolume setup')
+    device = storage['partitions']['root']
+    found = filesystem(device)
+    if found['TYPE'] != 'btrfs' or found['UUID'] != storage['filesystems']['root']['UUID']:
+        raise ValueError('Btrfs filesystem identity changed')
+    directory = tempfile.mkdtemp(prefix='forge-subvolumes-', dir='/mnt')
+    mounted = False
+    try:
+        command(['mount', '-t', 'btrfs', '-o', 'subvolid=5,nodev,nosuid', device, directory])
+        mounted = True
+        for name in SUBVOLUMES:
+            path = Path(directory) / name
+            if path.is_symlink():
+                raise ValueError('Refusing subvolume symlink')
+            if not path.exists():
+                command(['btrfs', 'subvolume', 'create', str(path)])
+            # A pre-existing ordinary directory is not a usable subvolume.
+            command(['btrfs', 'subvolume', 'show', str(path)])
+    finally:
+        if mounted:
+            command(['umount', directory])
+        # Failure to unmount intentionally leaves the mountpoint for recovery.
+        # No recursive cleanup or temporary-directory finalizer is permitted.
+        os.rmdir(directory)
+    return {'filesystem_uuid': found['UUID'], 'subvolumes': list(SUBVOLUMES)}
+
+
 class TargetMounts(AbstractContextManager):
     def __init__(self, storage):
         self.storage = storage
         self.temporary = None
         self.mounts = []
+        self.swap_active = False
 
     def mount(self, argv, target, recursive=False):
         command(argv)
@@ -122,8 +159,10 @@ class TargetMounts(AbstractContextManager):
                 raise ValueError('Target filesystem identity changed')
         # /run is later recursively bind-mounted into the target. Keeping the
         # target itself beneath /run would recursively include its own mount.
-        self.temporary = tempfile.TemporaryDirectory(prefix='forge-target-', dir='/mnt')
-        self.root = Path(self.temporary.name)
+        # Never use TemporaryDirectory around a mounted filesystem: its GC
+        # finalizer can recursively erase the installation after failed unmounts.
+        self.temporary = tempfile.mkdtemp(prefix='forge-target-', dir='/mnt')
+        self.root = Path(self.temporary)
         try:
             self.mount(['mount', '-t', 'btrfs', '-o', 'subvol=@,nodev,nosuid',
                         self.storage['partitions']['root'], str(self.root)], self.root)
@@ -140,6 +179,18 @@ class TargetMounts(AbstractContextManager):
         except BaseException:
             self.__exit__(*__import__('sys').exc_info())
             raise
+
+    def activate_swap(self):
+        """Opt-in use of only the already authorized installation swap device."""
+        if not self.mounts or self.swap_active:
+            raise ValueError('Swap activation requires an active target mount context')
+        path = self.storage['partitions']['swap']
+        observed = filesystem(path)
+        expected = self.storage['filesystems']['swap']
+        if observed['TYPE'] != 'swap' or observed['UUID'] != expected['UUID']:
+            raise ValueError('Installation swap identity changed')
+        command(['swapon', '--priority', '10', path])
+        self.swap_active = True
 
     def pseudo(self, *, require_dns=True):
         for name in ('proc', 'sys', 'dev', 'run'):
@@ -161,20 +212,65 @@ class TargetMounts(AbstractContextManager):
     def chroot(self, argv, timeout=300):
         if not argv or not argv[0].startswith('/'):
             raise ValueError('Chroot programs require explicit absolute paths')
-        return command(['chroot', str(self.root), *argv], timeout=timeout)
+        # Compilation output can be enormous. Spool it outside RAM, and retain
+        # a bounded diagnostic tail on failure instead of hiding Portage errors.
+        with tempfile.TemporaryFile(dir=self.root / 'var/tmp') as output:
+            process = subprocess.Popen(['chroot', str(self.root), *argv],
+                                       stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
+                                       start_new_session=True,
+                                       env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'})
+            expired = False
+            try:
+                returncode = process.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                expired = True
+                returncode = None
+            finally:
+                # Cover timeout, cancellation and children left after leader exit.
+                try:
+                    os.killpg(process.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                process.wait(timeout=10)
+            length = output.tell()
+            output.seek(max(0, length - 16384))
+            tail = output.read().decode('utf-8', errors='replace')
+            # Untrusted compiler/package text must not emit terminal controls.
+            tail = ''.join(c if c in '\n\t' or c.isprintable() else '?' for c in tail)
+            if expired:
+                raise TimeoutError(f'Target {Path(argv[0]).name} timed out after {timeout} seconds:\n{tail}')
+            if returncode:
+                raise RuntimeError(f'Target {Path(argv[0]).name} failed with exit {returncode}:\n{tail}')
+            return tail
 
     def __exit__(self, *args):
         failures = []
+        if self.swap_active:
+            try:
+                command(['swapoff', self.storage['partitions']['swap']], timeout=120)
+                self.swap_active = False
+            except (OSError, RuntimeError, subprocess.SubprocessError):
+                failures.append('swap ' + self.storage['partitions']['swap'])
+        remaining_mounts = []
         for target, recursive in reversed(self.mounts):
             try:
                 command(['umount', *(['--recursive'] if recursive else []), str(target)])
             except (OSError, RuntimeError, subprocess.SubprocessError):
                 failures.append(str(target))
-        self.mounts.clear()
+                remaining_mounts.append((target, recursive))
+        self.mounts = list(reversed(remaining_mounts))
         if failures:
             raise RuntimeError('Target cleanup incomplete; inspect and unmount manually: ' + ', '.join(failures))
         if self.temporary:
-            self.temporary.cleanup()
+            os.rmdir(self.temporary)  # Empty mountpoint only; never recursive cleanup.
         return False
 
 

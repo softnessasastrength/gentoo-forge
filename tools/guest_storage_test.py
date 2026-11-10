@@ -5,10 +5,14 @@ import os
 from pathlib import Path
 import subprocess
 import time
-import shutil
 
 from installer.storage import Audit, command, inspect, prepare, read_plan
-from installer.bootstrap import TargetMounts, extract, base_configuration, write_target
+from installer.bootstrap import TargetMounts, extract, base_configuration, write_target, create_subvolumes
+from installer.boot import install_boot_stack
+from installer.services import install_base_services
+from installer.graphics import install_amd_graphics
+from tools.install_butler import install as install_butler
+from tools.guest_payload import copy_payload
 
 
 def minimal_system(storage):
@@ -17,7 +21,7 @@ def minimal_system(storage):
     with TargetMounts(storage) as target:
         archive = target.root / '.forgeworth-stage3.tar.xz'
         digest = hashlib.sha256()
-        with open('/dev/vda', 'rb', buffering=0) as source, archive.open('xb') as output:
+        with open('/dev/disk/by-id/virtio-FORGE-STAGE3', 'rb', buffering=0) as source, archive.open('xb') as output:
             remaining = size
             while remaining:
                 chunk = source.read(min(1024 * 1024, remaining))
@@ -32,7 +36,8 @@ def minimal_system(storage):
         extract(archive, target.root, expected, size)
         archive.unlink()
         base_configuration(target.root, storage)
-        target.pseudo(require_dns=False)
+        target.activate_swap()
+        target.pseudo()
         print('FORGE_PHASE: verifying chroot and configuring base system', flush=True)
         target.chroot(['/usr/bin/env', 'bash', '-c', 'test -f /etc/gentoo-release && command -v emerge && command -v rc-update'])
         target.chroot(['/usr/bin/env', 'locale-gen'], timeout=120)
@@ -41,32 +46,19 @@ def minimal_system(storage):
         # Fixture accounts stay locked; no default passwords or autologin.
         target.chroot(['/usr/bin/env', 'passwd', '-l', 'root'])
         target.chroot(['/usr/bin/env', 'passwd', '-l', 'branden'])
-        kernel = os.uname().release
-        module_source = Path('/lib/modules') / kernel
-        module_target = target.root / 'usr/lib/modules' / kernel
-        module_target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(module_source, module_target, symlinks=True)
-        shutil.copyfile('/run/initramfs/live/boot/gentoo', target.root / 'boot/vmlinuz-forge-fixture')
+        boot = install_boot_stack(target, storage, binary_fallback=True, serial_console=True, jobs=2, load=2)
         root_uuid = storage['filesystems']['root']['UUID']
-        swap_uuid = storage['filesystems']['swap']['UUID']
-        cmdline = f'root=UUID={root_uuid} rootfstype=btrfs rootflags=subvol=@ resume=UUID={swap_uuid} console=ttyS0,115200n8'
-        write_target(target.root, 'etc/kernel/cmdline', cmdline + '\n')
-        print('FORGE_PHASE: generating a normal Btrfs/resume initramfs', flush=True)
-        command(['dracut', '--force', '--no-hostonly', '--no-hostonly-cmdline', '--gzip',
-                 '--add', 'btrfs resume', '--omit', 'dmsquash-live dmsquash-live-ntfs livenet',
-                 '--tmpdir', str(target.root / 'var/tmp'),
-                 str(target.root / 'boot/initramfs-forge-fixture.img'), kernel], timeout=600)
-        grub = ('set timeout=0\nserial --unit=0 --speed=115200\nterminal_input serial\nterminal_output serial\n'
-                f'search --no-floppy --fs-uuid --set=root {root_uuid}\n'
-                'menuentry "Gentoo Forge minimal qualification" {\n'
-                f' linux /@/boot/vmlinuz-forge-fixture {cmdline}\n'
-                ' initrd /@/boot/initramfs-forge-fixture.img\n}\n')
-        write_target(target.root, 'boot/grub/grub.cfg', grub)
-        print('FORGE_PHASE: installing UEFI GRUB into the private ESP', flush=True)
-        command(['grub-install', '--target=x86_64-efi', '--efi-directory=' + str(target.root / 'efi'),
-                 '--boot-directory=' + str(target.root / 'boot'), '--removable', '--no-nvram', '--recheck'], timeout=120)
-        if not (target.root / 'efi/EFI/BOOT/BOOTX64.EFI').is_file():
-            raise RuntimeError('EFI boot file not installed')
+        if os.environ.get('FORGE_BASE_SERVICES') == '1':
+            print('FORGE_PHASE: installing target system services', flush=True)
+            storage['base_services'] = install_base_services(target, binary_fallback=True, replace_dhcpcd=True)
+        if os.environ.get('FORGE_AMD_GRAPHICS') == '1':
+            print('FORGE_PHASE: installing AMDGPU and Mesa RADV', flush=True)
+            storage['amd_graphics'] = install_amd_graphics(target)
+        native_expected = bool(os.environ.get('FORGE_CODEX_SIZE'))
+        if native_expected:
+            copy_payload('/dev/disk/by-id/virtio-FORGE-CODEX', Path('/run/forge-code/bin/codex'),
+                         int(os.environ['FORGE_CODEX_SIZE']), os.environ['FORGE_CODEX_SHA256'])
+        install_butler(target.root)
         boot_check = '''#!/bin/sh
 uuid=$(findmnt -n -o UUID /)
 fs=$(findmnt -n -o FSTYPE /)
@@ -74,21 +66,29 @@ home=$(findmnt -n -o FSROOT /home)
 init=$(cat /proc/1/comm)
 efi=false; [ -d /sys/firmware/efi ] && efi=true
 iso=false; [ -b /dev/sr0 ] && iso=true
+butler=false
+if su -l -s /bin/bash branden -c 'command -v butler && butler --offline' >/var/log/forge-butler-check.log 2>&1 && grep -q 'FORGEWORTH offline help' /var/log/forge-butler-check.log; then butler=true; fi
+native=false
+native_ok=true
+if [ EXPECT_NATIVE = true ]; then
+    if su -l -s /bin/bash branden -c 'butler --check-instructions' >/var/log/forge-native-check.log 2>&1 && grep -q 'Verified: Codex discovered the complete canonical' /var/log/forge-native-check.log; then native=true; else native_ok=false; fi
+fi
 ok=false
-if [ "$uuid" = "ROOT_UUID" ] && [ "$fs" = btrfs ] && [ "$home" = /@home ] && [ "$init" = init ] && [ "$efi" = true ] && [ "$iso" = false ] && [ -f /run/openrc/softlevel ]; then ok=true; fi
-printf 'FORGE_BOOT_RESULT:{"passed":%s,"root_uuid":"%s","root_fs":"%s","home_subvolume":"%s","pid1":"%s","uefi":%s,"iso_present":%s}\\n' "$ok" "$uuid" "$fs" "$home" "$init" "$efi" "$iso"
+if [ "$uuid" = "ROOT_UUID" ] && [ "$fs" = btrfs ] && [ "$home" = /@home ] && [ "$init" = init ] && [ "$efi" = true ] && [ "$iso" = false ] && [ "$butler" = true ] && [ "$native_ok" = true ] && [ -f /run/openrc/softlevel ]; then ok=true; fi
+printf 'FORGE_BOOT_RESULT:{"passed":%s,"root_uuid":"%s","root_fs":"%s","home_subvolume":"%s","pid1":"%s","uefi":%s,"iso_present":%s,"butler_user_offline":%s,"native_instruction_discovery":%s}\\n' "$ok" "$uuid" "$fs" "$home" "$init" "$efi" "$iso" "$butler" "$native" >/dev/ttyS0
 (sleep 2; poweroff) &
 exit 0
-'''.replace('ROOT_UUID', root_uuid)
+'''.replace('ROOT_UUID', root_uuid).replace('EXPECT_NATIVE', 'true' if native_expected else 'false')
         write_target(target.root, 'etc/local.d/forge-verify.start', boot_check, 0o755)
         target.chroot(['/usr/bin/env', 'rc-update', 'add', 'local', 'default'])
         storage['minimal_stage3_extracted'] = True
         storage['chroot_verified'] = True
-        storage['kernel_source'] = 'Gentoo live-media kernel, explicit VM qualification fallback only'
+        storage['boot_stack'] = boot
         storage['initramfs'] = 'generated with dracut for Btrfs/resume'
         storage['bootloader'] = 'UEFI GRUB removable fallback in private ESP'
-        storage['portage_sync'] = 'not performed in this offline minimal fixture'
+        storage['portage_sync'] = 'emerge-webrsync completed in target'
         storage['desktop'] = 'not installed'
+        storage['butler'] = 'staged permanent executable; ordinary-user offline check required after boot, Codex inference not tested'
         storage['account_passwords'] = 'locked in unattended VM fixture'
 
 
@@ -130,19 +130,19 @@ def main():
             pass
         else:
             raise RuntimeError('Mounted descendant did not block target authorization')
-        for name in ('@', '@home', '@snapshots', '@home_snapshots'):
-            command(['btrfs', 'subvolume', 'create', '/run/forge-mount/' + name])
-            command(['btrfs', 'subvolume', 'show', '/run/forge-mount/' + name])
-        result['subvolumes'] = 'created and inspected in Gentoo VM'
     finally:
         command(['umount', '/run/forge-mount'])
+    result['subvolumes'] = create_subvolumes(result)
+    if hash_partition('/dev/sda1') != before:
+        raise RuntimeError('Existing NTFS changed during subvolume setup')
+    result.update({'ntfs_entire_partition_sha256_unchanged': True,
+                   'mounted_descendant_rejected': True, 'uefi_live_boot': True,
+                   'qualification': 'storage only', 'installed_system_boot': 'not tested'})
+    print('FORGE_STORAGE_RESULT:' + json.dumps(result), flush=True)
     if os.environ.get('FORGE_STAGE3_SIZE'):
         minimal_system(result)
         if hash_partition('/dev/sda1') != before:
             raise RuntimeError('Existing NTFS changed during bootstrap')
-    result.update({'ntfs_entire_partition_sha256_unchanged': True,
-                   'mounted_descendant_rejected': True, 'uefi_live_boot': True,
-                   'qualification': 'storage only', 'installed_system_boot': 'not tested'})
     print('FORGE_RESULT:' + json.dumps(result), flush=True)
 
 

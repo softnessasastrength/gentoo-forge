@@ -7,6 +7,15 @@ on:
       - 'tools/gentoo_vm.py'
       - 'tools/guest_storage_test.py'
       - 'tools/fetch_gentoo_fixture.py'
+      - 'tools/fetch_codex_fixture.py'
+      - 'tools/guest_payload.py'
+      - 'tools/build_livecd.py'
+      - 'tools/install_butler.py'
+      - 'butler'
+      - 'butler_cli.py'
+      - 'forgeworth/AGENTS.md'
+      - 'tui/personality.py'
+      - 'tui/process.py'
       - '.github/workflows/gentoo-vm.yml'
 permissions:
   contents: read
@@ -23,18 +32,26 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install isolated test dependencies
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf gpgv
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf gpgv acl
+      - name: Permit only the CI user to access an existing KVM device
+        run: |
+          if [[ -c /dev/kvm && ( ! -r /dev/kvm || ! -w /dev/kvm ) ]]; then
+            sudo setfacl -m "u:$(id -un):rw" /dev/kvm
+          fi
       - name: Authenticate Gentoo live media
         run: python -m tools.fetch_gentoo_fixture --output "$RUNNER_TEMP/gentoo-iso"
       - name: Authenticate OpenRC multilib Stage3
         run: python -m installer.media --output "$RUNNER_TEMP/gentoo-stage3"
-      - name: Install and boot minimal disposable Gentoo (software emulation)
+      - name: Fetch pinned credential-free Codex runtime
+        run: python -m tools.fetch_codex_fixture --output "$RUNNER_TEMP/codex-runtime"
+      - name: Install and boot minimal disposable Gentoo (KVM when accessible)
         run: >-
           python -m tools.gentoo_vm
           --iso "$RUNNER_TEMP/gentoo-iso/install-amd64-minimal-20261101T164556Z.iso"
           --stage3 "$RUNNER_TEMP/gentoo-stage3"
           --report "$RUNNER_TEMP/gentoo-evidence"
-          --accel tcg --memory-mib 2048
+          --accel auto --memory-mib 4096 --network
+          --codex-runtime "$RUNNER_TEMP/codex-runtime/codex.tar.gz"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

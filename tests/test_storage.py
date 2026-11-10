@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from installer.storage import (Audit, Target, active_devices, main, nodes,
-                               prepare)
+                               prepare, backup_gpt, validate_allocated_table)
 from installer.partition_plan import plan, commands
 
 
@@ -64,13 +64,12 @@ class StoragePolicyTests(unittest.TestCase):
                      (True, False, 'ERASE /dev/sda SERIAL 274877906944'),
                      (True, True, 'yes')]
             for nuke, interactive, confirmation in cases:
-                with patch('os.geteuid', return_value=0), patch('shutil.which', return_value='/tool'), patch('installer.storage.inspect', return_value=target), patch('installer.storage.read_plan', return_value=proposal()), patch('installer.storage.open_target') as opened:
+                with patch('os.geteuid', return_value=0), patch('shutil.which', return_value='/tool'), patch('installer.storage.inspect', return_value=target), patch('installer.storage.read_plan', return_value=proposal()), patch('installer.storage.open_target') as opened, patch.object(audit, 'write') as records:
                     with self.assertRaises(PermissionError):
                         prepare(target, proposal(), nuke_it=nuke, interactive=interactive,
                                 confirmation=confirmation, audit=audit)
                     opened.assert_not_called()
-            events = [json.loads(line)['action'] for line in audit.path.read_text().splitlines()]
-            self.assertNotIn('approved', events)
+                    self.assertNotIn('approved', [call.args[0] for call in records.call_args_list])
 
     def test_missing_tools_and_nonroot_fail_before_authorization(self):
         target = Target('/dev/sda', 'SERIAL', 'MODEL', 256 * 1024**3, '8:0')
@@ -83,9 +82,48 @@ class StoragePolicyTests(unittest.TestCase):
 
     def test_cli_cannot_enable_unqualified_physical_writes(self):
         target = Target('/dev/sda', 'SERIAL', 'MODEL', 256 * 1024**3, '8:0')
-        with patch('sys.argv', ['forge-install', 'storage', '--disk', '/dev/sda', '--nuke-it']), patch('installer.storage.inspect', return_value=target), patch('installer.storage.read_plan', return_value=proposal()), patch('installer.storage.prepare') as executor:
+        with patch('sys.argv', ['forge-install', 'storage', '--disk', '/dev/sda', '--nuke-it']), patch('installer.storage.PHYSICAL_WRITES_QUALIFIED', False), patch('installer.storage.inspect', return_value=target), patch('installer.storage.read_plan', return_value=proposal()), patch('installer.storage.prepare') as executor:
             self.assertEqual(main(), 1)
             executor.assert_not_called()
+
+    def test_even_qualified_cli_requires_real_terminal_and_nuke_flag(self):
+        target = Target('/dev/sda', 'SERIAL', 'MODEL', 256 * 1024**3, '8:0')
+        for nuke, tty in [(False, True), (True, False)]:
+            arguments = ['forge-install', 'storage', '--disk', '/dev/sda'] + (['--nuke-it'] if nuke else [])
+            with patch('sys.argv', arguments), patch('installer.storage.PHYSICAL_WRITES_QUALIFIED', True), patch('os.geteuid', return_value=0), patch('sys.stdin.isatty', return_value=tty), patch('sys.stdout.isatty', return_value=tty), patch('installer.storage.inspect', return_value=target), patch('installer.storage.read_plan', return_value=proposal()), patch('installer.storage.prepare') as executor:
+                self.assertEqual(main(), 1)
+                executor.assert_not_called()
+
+    def test_gpt_backup_is_written_before_mutation_and_hashed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            audit = Audit(Path(directory) / 'audit.jsonl')
+            target = Target('/dev/sdz', 'SYNTHETIC', 'Fixture', 64 * 1024**3, '8:240')
+            def backup(argv, **kwargs):
+                path = next(a.split('=', 1)[1] for a in argv if a.startswith('--backup='))
+                Path(path).write_bytes(b'gpt-fixture' * 1000)
+                self.assertEqual(argv[-1], '/proc/self/fd/99')
+                self.assertEqual(kwargs['pass_fds'], (99,))
+                return __import__('subprocess').CompletedProcess(argv, 0)
+            with patch('installer.storage.command', return_value='No problems found.\n'), patch('installer.storage.subprocess.run', backup):
+                result = backup_gpt(target, 99, audit)
+            self.assertTrue(Path(result['path']).is_file())
+            self.assertEqual(len(result['sha256']), 64)
+            self.assertEqual(Path(result['path']).stat().st_mode & 0o777, 0o600)
+            self.assertIn('gpt-backup-verified', audit.path.read_text())
+
+    def test_allocated_extents_are_revalidated_before_formatting(self):
+        value = proposal()
+        paths = {p['number']: '/dev/sda' + str(p['number']) for p in value['new']}
+        table = {'label': 'gpt', 'id': value['table_id'], 'device': '/dev/sda',
+                 'unit': 'sectors', 'sectorsize': 512, 'partitions': []}
+        from installer.partition_plan import GUIDS
+        for p in value['new']:
+            table['partitions'].append({'node': paths[p['number']], 'start': p['start'],
+                                       'size': p['end'] - p['start'] + 1, 'type': GUIDS[p['purpose']]})
+        validate_allocated_table(value, table, paths)
+        table['partitions'][0]['start'] += 1
+        with self.assertRaises(ValueError):
+            validate_allocated_table(value, table, paths)
 
     def test_gentoo_overlay_backing_is_resolved(self):
         mounts = ('1 0 0:1 / /run rw - tmpfs tmpfs rw\n'
