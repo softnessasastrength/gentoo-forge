@@ -105,3 +105,24 @@ Run 42511142357 installed the distribution kernel and reached the installed Open
 runlevel, but the local verification output was captured by OpenRC instead of the
 serial console. Its job failed, so no successful boot qualification was recorded.
 The fixture now writes the marker directly to `/dev/ttyS0`.
+
+Run 42542186605 used KVM successfully for installation, then failed to open KVM
+for the separate installed-system launch. The automatic accelerator mode now
+rechecks access and permits one TCG fallback only after a terminal KVM permission
+failure and only for a generic x86-64 target. Explicit KVM requests, optimized CPUs,
+and serial observation timeouts do not trigger this fallback. Both accelerator
+choices are recorded; this change still needs remote qualification.
+
+## Desktop and account stage status
+
+`installer/desktop.py` implements the Plasma profile/world update, current
+`gui-apps/sddm` package, XWayland, elogind, PipeWire/WirePlumber session startup,
+and target OpenRC registration. Automatic login is disabled. Package and service
+checks are not a substitute for an actual graphical login test, which is pending.
+
+`installer/accounts.py` implements an ordinary account, password-required wheel
+sudo, and a locked root account. Passwords enter the fixed `chpasswd` process over
+stdin, never argv, environment, files or diagnostics. A production caller must
+supply a password from a local secret prompt. Locked users require explicit
+fixture permission. These APIs are unit-tested but are not yet connected to a
+complete physical installation wizard or verified graphical-login workflow.

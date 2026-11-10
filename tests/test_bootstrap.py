@@ -234,9 +234,18 @@ class BootstrapTests(unittest.TestCase):
         from tools.gentoo_vm import save_storage_evidence
         with tempfile.TemporaryDirectory() as directory:
             record = {'qualification': 'storage only', 'installed_system_boot': 'not tested'}
-            data = b'FORGE# FORGE_STORAGE_RESULT:' + json.dumps(record).encode() + b'\r\nfailed later\n'
+            data = b'FORGE# FORGE# FORGE# FORGE_STORAGE_RESULT:' + json.dumps(record).encode() + b'\r\nfailed later\n'
             save_storage_evidence(data, directory)
             self.assertEqual(json.loads((Path(directory) / 'STORAGE.json').read_text()), record)
             record['installed_system_boot'] = 'passed'
             with self.assertRaises(ValueError):
                 save_storage_evidence(b'FORGE_STORAGE_RESULT:' + json.dumps(record).encode(), directory)
+
+    def test_boot_fallback_requires_terminal_kvm_permission_error_and_portable_cpu(self):
+        from tools.gentoo_vm import boot_fallback_allowed
+        error = b'Could not access KVM kernel module: Permission denied\nfailed to initialize kvm'
+        self.assertTrue(boot_fallback_allowed('auto', 'kvm', 'x86-64', error))
+        self.assertFalse(boot_fallback_allowed('kvm', 'kvm', 'x86-64', error))
+        self.assertFalse(boot_fallback_allowed('auto', 'kvm', 'znver2', error))
+        self.assertFalse(boot_fallback_allowed('auto', 'tcg', 'x86-64', error))
+        self.assertFalse(boot_fallback_allowed('auto', 'kvm', 'x86-64', b'observation timeout'))

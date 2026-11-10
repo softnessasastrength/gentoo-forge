@@ -47,6 +47,12 @@ def resolve_accelerator(requested):
     return 'kvm' if available else 'tcg'
 
 
+def boot_fallback_allowed(requested, accelerator, compiler_march, diagnostic):
+    return (requested == 'auto' and accelerator == 'kvm' and compiler_march == 'x86-64'
+            and b'Could not access KVM kernel module: Permission denied' in diagnostic
+            and b'failed to initialize kvm' in diagnostic)
+
+
 def check_resources(memory_mib, meminfo=None):
     if type(memory_mib) is not int or not 1536 <= memory_mib <= 8192:
         raise ValueError('Gentoo qualification requires 1536–8192 MiB guest RAM')
@@ -103,7 +109,7 @@ class Serial:
 
 
 def save_storage_evidence(data, directory):
-    matches = re.findall(rb'(?:^|[\r\n])(?:FORGE# )?FORGE_STORAGE_RESULT:(\{[^\r\n]+\})', data)
+    matches = re.findall(rb'(?:^|[\r\n])(?:FORGE# )*FORGE_STORAGE_RESULT:(\{[^\r\n]+\})', data)
     if not matches:
         return
     if len(matches) != 1:
@@ -133,6 +139,7 @@ def qualify(iso, report_directory, accelerator='kvm', stage3=None, memory_mib=20
         raise ValueError('Extended qualification requires authenticated Stage3')
     if stage3 and not network:
         raise ValueError('Stage3 boot qualification requires explicit --network for target packages')
+    requested_accelerator = accelerator
     accelerator = resolve_accelerator(accelerator)
     check_resources(memory_mib)
     print(f'Qualification resources: {accelerator}, {memory_mib} MiB guest RAM', flush=True)
@@ -224,23 +231,58 @@ def qualify(iso, report_directory, accelerator='kvm', stage3=None, memory_mib=20
                     if stage3:
                         print('Booting installed disk with ISO, Stage3 device and direct kernel detached...', flush=True)
                         socket_path = directory / 'installed.sock'
-                        boot_argv = ['qemu-system-x86_64', '-machine', 'q35', '-accel', accelerator,
-                                     '-cpu', 'host' if accelerator == 'kvm' else 'qemu64', '-m', str(memory_mib), '-smp', '2',
+                        boot_accelerator = resolve_accelerator(requested_accelerator)
+                        compiler_march = result['boot_stack']['compiler']['march']
+                        if accelerator == 'kvm' and boot_accelerator == 'tcg' and compiler_march != 'x86-64':
+                            raise RuntimeError('KVM access changed; cannot safely change the optimized guest CPU to TCG')
+                        print('Installed boot accelerator: ' + boot_accelerator, flush=True)
+                        result['vm_resources']['installed_boot_accelerator'] = boot_accelerator
+                        boot_argv = ['qemu-system-x86_64', '-name', 'forge-disposable-qualification', '-machine', 'q35', '-accel', boot_accelerator,
+                                     '-cpu', 'host' if boot_accelerator == 'kvm' else 'qemu64', '-m', str(memory_mib), '-smp', '2',
                                      '-nodefaults', '-display', 'none', '-monitor', 'none', '-nic', 'user,model=virtio-net-pci' if network else 'none', '-no-reboot',
                                      '-drive', f'if=pflash,format=raw,readonly=on,file={code}',
                                      '-drive', f'if=pflash,format=raw,file={directory / "vars.fd"}',
                                      '-drive', f'file={directory / "fixture.qcow2"},format=qcow2,if=none,id=target',
                                      '-device', 'ide-hd,drive=target,bus=ide.0,serial=FORGE-SMOKE-0001',
                                      '-serial', f'unix:{socket_path},server=on,wait=off']
+                        boot_log_offset = errors.tell()
                         process = subprocess.Popen(boot_argv, stdout=subprocess.DEVNULL, stderr=errors, start_new_session=True,
                                                    preexec_fn=limit_guest_files)
                         with socket.socket(socket.AF_UNIX) as installed:
                             deadline = time.monotonic() + 10
-                            while not socket_path.exists():
-                                if process.poll() is not None or time.monotonic() > deadline:
-                                    raise RuntimeError('Installed boot QEMU startup failed')
-                                time.sleep(.05)
-                            installed.connect(str(socket_path))
+                            while True:
+                                if process.poll() is not None:
+                                    errors.flush()
+                                    with (report_directory / 'qemu.log').open('rb') as diagnostics:
+                                        diagnostics.seek(boot_log_offset)
+                                        failure = diagnostics.read(8192)
+                                    if boot_fallback_allowed(requested_accelerator, boot_accelerator, compiler_march, failure):
+                                        # Terminal startup failure, before any guest boot; never
+                                        # restart merely because serial observation timed out.
+                                        try:
+                                            os.killpg(process.pid, signal.SIGKILL)
+                                        except ProcessLookupError:
+                                            pass
+                                        process.wait(timeout=10)
+                                        socket_path.unlink(missing_ok=True)
+                                        boot_accelerator = 'tcg'
+                                        boot_argv[boot_argv.index('-accel') + 1] = 'tcg'
+                                        boot_argv[boot_argv.index('-cpu') + 1] = 'qemu64'
+                                        result['vm_resources']['installed_boot_accelerator'] = 'tcg'
+                                        result['vm_resources']['boot_fallback_reason'] = 'KVM startup permission denied'
+                                        print('KVM startup denied; booting the generic x86-64 target with TCG', flush=True)
+                                        process = subprocess.Popen(boot_argv, stdout=subprocess.DEVNULL, stderr=errors,
+                                                                   start_new_session=True, preexec_fn=limit_guest_files)
+                                        deadline = time.monotonic() + 10
+                                        continue
+                                    raise RuntimeError('Installed boot QEMU startup failed; inspect qemu.log')
+                                try:
+                                    installed.connect(str(socket_path))
+                                    break
+                                except (FileNotFoundError, ConnectionRefusedError):
+                                    if time.monotonic() > deadline:
+                                        raise TimeoutError('Installed QEMU serial startup deadline expired')
+                                    time.sleep(.05)
                             boot_serial = Serial(installed, log)
                             observed = boot_serial.wait(rb'FORGE_BOOT_RESULT:\{[^\r\n]+\}', 480)
                             marker = re.search(rb'FORGE_BOOT_RESULT:(\{[^\r\n]+\})', observed)

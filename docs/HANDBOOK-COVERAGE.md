@@ -37,7 +37,7 @@ No hardware verification or complete installed-system boot is currently claimed.
 | fstab | System | UUID-based root/home/snapshots/ESP/swap mounts | installer/bootstrap.py | tests/test_bootstrap.py | Read mounts after installed-system boot and compare UUIDs/subvolumes | implemented |
 | hostname | System | Hostname forge and local hosts | installer/bootstrap.py | tests/test_bootstrap.py | Check hostname after first boot | implemented |
 | networkmanager | System | NetworkManager and OpenRC service configuration | installer/services.py | tests/test_services.py | Installed boot gets link, route, DNS and HTTPS; runtime verification pending | unit-tested |
-| accounts | System | User branden, safe authentication, sudo and locked root policy | tools/guest_storage_test.py | Pending | Fixture creates locked users only; real authenticated login/sudo pending | partial |
+| accounts | System | User branden, safe authentication, sudo and locked root policy | installer/accounts.py | tests/test_accounts.py | Secret-input channel, root lock and password-required sudo unit-tested; actual login pending | unit-tested |
 | logger | Tools | System logger and OpenRC registration | installer/services.py | tests/test_services.py | Installed logger accepts and persists a test entry; runtime verification pending | unit-tested |
 | cron | Tools | Cron daemon and OpenRC scheduling | installer/services.py | tests/test_services.py | Installed cron executes a harmless test task; runtime verification pending | unit-tested |
 | clock | Tools | Installed time synchronization | installer/services.py | tests/test_services.py | Chrony service and synchronization report after boot; runtime verification pending | unit-tested |
@@ -46,7 +46,7 @@ No hardware verification or complete installed-system boot is currently claimed.
 | grub | Bootloader | GRUB UEFI installation and generated boot configuration | installer/boot.py | tests/test_boot.py | Inspect target-generated GRUB config and boot with ISO detached | implemented |
 | reboot | Finalizing | Independent installed-system first boot | tools/gentoo_vm.py | Pending | OVMF boots target alone; actual root UUID/OpenRC/home/EFI evidence | implemented |
 | cleanup | Finalizing | Unmounts, stage archive cleanup and recovery checkpoints | installer/bootstrap.py | tests/test_bootstrap.py | Interrupt and repeat supported stages without reformatting | partial |
-| plasma | Desktop extension | Plasma, SDDM, Wayland and XWayland | Pending | Pending | Actual SDDM user login and desktop/session verification | pending |
+| plasma | Desktop extension | Plasma, SDDM, Wayland and XWayland | installer/desktop.py | tests/test_desktop.py | Package/profile/service stage unit-tested; actual SDDM user login still pending | unit-tested |
 | graphics-audio | Desktop extension | AMDGPU/RADV and PipeWire | installer/graphics.py | tests/test_graphics.py | AMDGPU package stage added; PipeWire and actual renderer/audio verification still pending | partial |
 | gaming | Gaming extension | Optional Steam/Proton/Wine/GameMode with 32-bit ABI | Pending | Pending | Resolve dependencies/licenses; launch and verify representative workloads | pending |
 | snapper | Snapshot extension | Root/home Snapper configurations and requested retention | Pending | Pending | Create independent snapshots and verify OpenRC cleanup schedules | pending |
