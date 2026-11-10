@@ -12,6 +12,7 @@ from installer.boot import install_boot_stack
 from installer.services import install_base_services
 from installer.graphics import install_amd_graphics
 from tools.install_butler import install as install_butler
+from tools.guest_payload import copy_payload
 
 
 def minimal_system(storage):
@@ -20,7 +21,7 @@ def minimal_system(storage):
     with TargetMounts(storage) as target:
         archive = target.root / '.forgeworth-stage3.tar.xz'
         digest = hashlib.sha256()
-        with open('/dev/vda', 'rb', buffering=0) as source, archive.open('xb') as output:
+        with open('/dev/disk/by-id/virtio-FORGE-STAGE3', 'rb', buffering=0) as source, archive.open('xb') as output:
             remaining = size
             while remaining:
                 chunk = source.read(min(1024 * 1024, remaining))
@@ -53,6 +54,10 @@ def minimal_system(storage):
         if os.environ.get('FORGE_AMD_GRAPHICS') == '1':
             print('FORGE_PHASE: installing AMDGPU and Mesa RADV', flush=True)
             storage['amd_graphics'] = install_amd_graphics(target)
+        native_expected = bool(os.environ.get('FORGE_CODEX_SIZE'))
+        if native_expected:
+            copy_payload('/dev/disk/by-id/virtio-FORGE-CODEX', Path('/run/forge-code/bin/codex'),
+                         int(os.environ['FORGE_CODEX_SIZE']), os.environ['FORGE_CODEX_SHA256'])
         install_butler(target.root)
         boot_check = '''#!/bin/sh
 uuid=$(findmnt -n -o UUID /)
@@ -62,13 +67,18 @@ init=$(cat /proc/1/comm)
 efi=false; [ -d /sys/firmware/efi ] && efi=true
 iso=false; [ -b /dev/sr0 ] && iso=true
 butler=false
-if su -s /bin/sh branden -c 'command -v butler && butler --offline' >/var/log/forge-butler-check.log 2>&1 && grep -q 'FORGEWORTH offline help' /var/log/forge-butler-check.log; then butler=true; fi
+if su -l -s /bin/bash branden -c 'command -v butler && butler --offline' >/var/log/forge-butler-check.log 2>&1 && grep -q 'FORGEWORTH offline help' /var/log/forge-butler-check.log; then butler=true; fi
+native=false
+native_ok=true
+if [ EXPECT_NATIVE = true ]; then
+    if su -l -s /bin/bash branden -c 'butler --check-instructions' >/var/log/forge-native-check.log 2>&1 && grep -q 'Verified: Codex discovered the complete canonical' /var/log/forge-native-check.log; then native=true; else native_ok=false; fi
+fi
 ok=false
-if [ "$uuid" = "ROOT_UUID" ] && [ "$fs" = btrfs ] && [ "$home" = /@home ] && [ "$init" = init ] && [ "$efi" = true ] && [ "$iso" = false ] && [ "$butler" = true ] && [ -f /run/openrc/softlevel ]; then ok=true; fi
-printf 'FORGE_BOOT_RESULT:{"passed":%s,"root_uuid":"%s","root_fs":"%s","home_subvolume":"%s","pid1":"%s","uefi":%s,"iso_present":%s,"butler_user_offline":%s}\\n' "$ok" "$uuid" "$fs" "$home" "$init" "$efi" "$iso" "$butler" >/dev/ttyS0
+if [ "$uuid" = "ROOT_UUID" ] && [ "$fs" = btrfs ] && [ "$home" = /@home ] && [ "$init" = init ] && [ "$efi" = true ] && [ "$iso" = false ] && [ "$butler" = true ] && [ "$native_ok" = true ] && [ -f /run/openrc/softlevel ]; then ok=true; fi
+printf 'FORGE_BOOT_RESULT:{"passed":%s,"root_uuid":"%s","root_fs":"%s","home_subvolume":"%s","pid1":"%s","uefi":%s,"iso_present":%s,"butler_user_offline":%s,"native_instruction_discovery":%s}\\n' "$ok" "$uuid" "$fs" "$home" "$init" "$efi" "$iso" "$butler" "$native" >/dev/ttyS0
 (sleep 2; poweroff) &
 exit 0
-'''.replace('ROOT_UUID', root_uuid)
+'''.replace('ROOT_UUID', root_uuid).replace('EXPECT_NATIVE', 'true' if native_expected else 'false')
         write_target(target.root, 'etc/local.d/forge-verify.start', boot_check, 0o755)
         target.chroot(['/usr/bin/env', 'rc-update', 'add', 'local', 'default'])
         storage['minimal_stage3_extracted'] = True

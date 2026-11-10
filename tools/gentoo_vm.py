@@ -22,6 +22,7 @@ import tempfile
 import time
 
 from tools.iso9660 import ISO
+from tools.fetch_codex_fixture import extract_codex
 from tui.qemu import firmware
 from installer.media import load_verified_stage3
 
@@ -124,7 +125,7 @@ def payload():
     buffer = io.BytesIO()
     files = ['installer/__init__.py', 'installer/storage.py', 'installer/partition_plan.py', 'installer/bootstrap.py', 'installer/boot.py', 'installer/portage.py', 'installer/services.py', 'installer/graphics.py',
              'tui/__init__.py', 'tui/safety.py', 'tui/personality.py', 'tui/process.py',
-             'tools/guest_storage_test.py', 'tools/install_butler.py', 'butler', 'butler_cli.py',
+             'tools/guest_storage_test.py', 'tools/guest_payload.py', 'tools/install_butler.py', 'butler', 'butler_cli.py',
              'docs/BUTLER.md', 'forgeworth/AGENTS.md']
     with tarfile.open(fileobj=buffer, mode='w:gz') as archive:
         for name in files:
@@ -132,10 +133,10 @@ def payload():
     return base64.b64encode(buffer.getvalue()).decode()
 
 
-def qualify(iso, report_directory, accelerator='kvm', stage3=None, memory_mib=2048, network=False, base_services=False, amd_graphics=False):
+def qualify(iso, report_directory, accelerator='kvm', stage3=None, memory_mib=2048, network=False, base_services=False, amd_graphics=False, codex_runtime=None):
     if os.geteuid() == 0:
         raise PermissionError('Run the QEMU driver unprivileged')
-    if (base_services or amd_graphics) and not stage3:
+    if (base_services or amd_graphics or codex_runtime) and not stage3:
         raise ValueError('Extended qualification requires authenticated Stage3')
     if stage3 and not network:
         raise ValueError('Stage3 boot qualification requires explicit --network for target packages')
@@ -179,6 +180,12 @@ def qualify(iso, report_directory, accelerator='kvm', stage3=None, memory_mib=20
             archive = stage3 / verification['filename']
             argv += ['-drive', f'file={archive},format=raw,readonly=on,if=none,id=stage3',
                      '-device', 'virtio-blk-pci,drive=stage3,serial=FORGE-STAGE3']
+        codex_metadata = None
+        if codex_runtime:
+            native = directory / 'codex'
+            codex_metadata = extract_codex(codex_runtime, native)
+            argv += ['-drive', f'file={native},format=raw,readonly=on,if=none,id=codex',
+                     '-device', 'virtio-blk-pci,drive=codex,serial=FORGE-CODEX']
         with (report_directory / 'qemu.log').open('wb') as errors, (report_directory / 'serial.log').open('wb') as log:
             process = subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=errors, start_new_session=True,
                                        preexec_fn=limit_guest_files)
@@ -207,6 +214,9 @@ def qualify(iso, report_directory, accelerator='kvm', stage3=None, memory_mib=20
                     if stage3:
                         serial.send('export FORGE_STAGE3_SIZE=' + str(verification['size']))
                         serial.send('export FORGE_STAGE3_SHA256=' + verification['sha256'])
+                    if codex_metadata:
+                        serial.send('export FORGE_CODEX_SIZE=' + str(codex_metadata['size']))
+                        serial.send('export FORGE_CODEX_SHA256=' + codex_metadata['sha256'])
                     if base_services:
                         serial.send('export FORGE_BASE_SERVICES=1')
                     if amd_graphics:
@@ -312,5 +322,6 @@ if __name__ == '__main__':
     parser.add_argument('--network', action='store_true', help='Allow outbound QEMU user networking for authenticated target packages')
     parser.add_argument('--base-services', action='store_true', help='Also install and register selected Handbook system services')
     parser.add_argument('--amd-graphics', action='store_true', help='Also install AMDGPU firmware/Mesa, without claiming hardware rendering verification')
+    parser.add_argument('--codex-runtime', type=Path, help='Pinned Codex archive for post-reboot native instruction discovery without inference')
     args = parser.parse_args()
-    print(json.dumps(qualify(args.iso, args.report, args.accel, args.stage3, args.memory_mib, args.network, args.base_services, args.amd_graphics), indent=2))
+    print(json.dumps(qualify(args.iso, args.report, args.accel, args.stage3, args.memory_mib, args.network, args.base_services, args.amd_graphics, args.codex_runtime), indent=2))

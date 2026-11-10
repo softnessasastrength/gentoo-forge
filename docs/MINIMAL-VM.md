@@ -111,7 +111,8 @@ for the separate installed-system launch. The automatic accelerator mode now
 rechecks access and permits one TCG fallback only after a terminal KVM permission
 failure and only for a generic x86-64 target. Explicit KVM requests, optimized CPUs,
 and serial observation timeouts do not trigger this fallback. Both accelerator
-choices are recorded; this change still needs remote qualification.
+choices are recorded. Run 42750036097 passed with KVM installation and TCG
+installed-system boot; the retained result is in `docs/evidence/`.
 
 ## Desktop and account stage status
 
@@ -126,3 +127,18 @@ stdin, never argv, environment, files or diagnostics. A production caller must
 supply a password from a local secret prompt. Locked users require explicit
 fixture permission. These APIs are unit-tested but are not yet connected to a
 complete physical installation wizard or verified graphical-login workflow.
+
+## Qualified minimal boot
+
+[Run 42750036097](https://github.com/softnessasastrength/gentoo-forge/actions/runs/42750036097)
+passed at commit `d35cdf6`. It observed the expected Btrfs root UUID, independent
+`@home`, OpenRC PID 1, UEFI, detached ISO, and ordinary-user Butler offline help.
+The entire synthetic NTFS partition remained unchanged. This qualifies the minimal
+path; it does not qualify Plasma login, hibernation, rollback or physical hardware.
+
+The next CI revision attaches only a hash-verified native Codex executable as an
+additional read-only data device. The guest verifies its exact size/hash, stages it
+through the normal Butler installer, and requires `butler --check-instructions`
+from an ordinary Bash login shell after reboot. No credentials or inference requests
+are involved. The native-discovery extension remains unverified until its own run
+passes. Manual runs can add `--codex-runtime /path/to/pinned/codex.tar.gz`.

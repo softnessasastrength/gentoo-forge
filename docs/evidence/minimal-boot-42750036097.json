@@ -1,0 +1,139 @@
+{
+  "workflow_run": "https://github.com/softnessasastrength/gentoo-forge/actions/runs/42750036097",
+  "commit": "d35cdf6223bdc6ae32c7b688741a30fa44f789dd",
+  "scope": "Minimal authenticated OpenRC multilib Stage3 installation and independent UEFI boot; no desktop or hardware certification",
+  "serial_sha256": "cda07f41ef16e86b2d56809c1f4c917fc63a61070457121a5ffeff5aa7354d67",
+  "result": {
+    "target": {
+      "path": "/dev/sda",
+      "serial": "FORGE-SMOKE-0001",
+      "model": "QEMU HARDDISK",
+      "size": 68719476736,
+      "devno": "8:0"
+    },
+    "partitions": {
+      "efi": "/dev/sda2",
+      "swap": "/dev/sda3",
+      "root": "/dev/sda4"
+    },
+    "filesystems": {
+      "efi": {
+        "DEVNAME": "/dev/sda2",
+        "LABEL_FATBOOT": "FORGE_EFI",
+        "LABEL": "FORGE_EFI",
+        "UUID": "05CB-3941",
+        "VERSION": "FAT32",
+        "FSBLOCKSIZE": "4096",
+        "BLOCK_SIZE": "512",
+        "FSSIZE": "1073737728",
+        "TYPE": "vfat",
+        "USAGE": "filesystem",
+        "PART_ENTRY_SCHEME": "gpt",
+        "PART_ENTRY_NAME": "FORGE_EFI",
+        "PART_ENTRY_UUID": "6724f4fe-f29a-4759-8ec1-f18f777b39f5",
+        "PART_ENTRY_TYPE": "c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
+        "PART_ENTRY_NUMBER": "2",
+        "PART_ENTRY_OFFSET": "1050624",
+        "PART_ENTRY_SIZE": "2097152",
+        "PART_ENTRY_DISK": "8:0"
+      },
+      "swap": {
+        "DEVNAME": "/dev/sda3",
+        "ENDIANNESS": "LITTLE",
+        "FSBLOCKSIZE": "4096",
+        "FSSIZE": "21474832384",
+        "FSLASTBLOCK": "5242880",
+        "LABEL": "FORGE_SWAP",
+        "UUID": "7cc39c21-880e-4778-b878-61ecacf1a619",
+        "VERSION": "1",
+        "TYPE": "swap",
+        "USAGE": "other",
+        "PART_ENTRY_SCHEME": "gpt",
+        "PART_ENTRY_NAME": "FORGE_SWAP",
+        "PART_ENTRY_UUID": "4452b9d5-0a34-48ee-bc8b-e03b30aa37e4",
+        "PART_ENTRY_TYPE": "0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
+        "PART_ENTRY_NUMBER": "3",
+        "PART_ENTRY_OFFSET": "3147776",
+        "PART_ENTRY_SIZE": "41943040",
+        "PART_ENTRY_DISK": "8:0"
+      },
+      "root": {
+        "DEVNAME": "/dev/sda4",
+        "LABEL": "FORGE_ROOT",
+        "UUID": "63c979e3-ef57-4e72-9c54-83e018e65473",
+        "UUID_SUB": "9107c93a-17df-4d7a-a47f-974deb1cb1fc",
+        "FSBLOCKSIZE": "4096",
+        "BLOCK_SIZE": "4096",
+        "FSLASTBLOCK": "11140608",
+        "FSSIZE": "45631930368",
+        "TYPE": "btrfs",
+        "USAGE": "filesystem",
+        "PART_ENTRY_SCHEME": "gpt",
+        "PART_ENTRY_NAME": "FORGE_ROOT",
+        "PART_ENTRY_UUID": "e8854a89-3633-47d3-a24e-c5df86feefc7",
+        "PART_ENTRY_TYPE": "0fc63daf-8483-4772-8e79-3d69d8477de4",
+        "PART_ENTRY_NUMBER": "4",
+        "PART_ENTRY_OFFSET": "45090816",
+        "PART_ENTRY_SIZE": "89124864",
+        "PART_ENTRY_DISK": "8:0"
+      }
+    },
+    "gpt_backup": {
+      "path": "/run/gpt-before-4vhehxbb.bin",
+      "sha256": "e7d9169a846c28e5e9e96e473619f2cda8b71a7a2637d43a8e9fa712ec350b9a",
+      "bytes": 17920
+    },
+    "stage": "storage-filesystems-verified",
+    "installation": "not started",
+    "subvolumes": {
+      "filesystem_uuid": "63c979e3-ef57-4e72-9c54-83e018e65473",
+      "subvolumes": [
+        "@",
+        "@home",
+        "@snapshots",
+        "@home_snapshots"
+      ]
+    },
+    "hibernation": "unverified",
+    "rollback": "unverified",
+    "ntfs_entire_partition_sha256_unchanged": true,
+    "mounted_descendant_rejected": true,
+    "uefi_live_boot": true,
+    "qualification": "minimal Stage3 UEFI boot with target kernel packages; full Handbook path incomplete",
+    "installed_system_boot": {
+      "passed": true,
+      "root_uuid": "63c979e3-ef57-4e72-9c54-83e018e65473",
+      "root_fs": "btrfs",
+      "home_subvolume": "/@home",
+      "pid1": "init",
+      "uefi": true,
+      "iso_present": false,
+      "butler_user_offline": true
+    },
+    "minimal_stage3_extracted": true,
+    "chroot_verified": true,
+    "boot_stack": {
+      "profile": "default/linux/amd64/23.0",
+      "compiler": {
+        "march": "x86-64",
+        "jobs": 2,
+        "load": 2
+      },
+      "kernel_package": "sys-kernel/gentoo-kernel-bin",
+      "binary_fallback": true,
+      "initramfs": "dracut with Btrfs/resume",
+      "bootloader": "UEFI GRUB removable fallback"
+    },
+    "initramfs": "generated with dracut for Btrfs/resume",
+    "bootloader": "UEFI GRUB removable fallback in private ESP",
+    "portage_sync": "emerge-webrsync completed in target",
+    "desktop": "not installed",
+    "butler": "staged permanent executable; ordinary-user offline check required after boot, Codex inference not tested",
+    "account_passwords": "locked in unattended VM fixture",
+    "vm_resources": {
+      "accelerator": "kvm",
+      "memory_mib": 4096,
+      "installed_boot_accelerator": "tcg"
+    }
+  }
+}
